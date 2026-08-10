@@ -1,0 +1,7 @@
+features:
+  system:
+    ping:
+      name: Ping
+      commands:
+        - name: Ping
+          service_id: ping_event

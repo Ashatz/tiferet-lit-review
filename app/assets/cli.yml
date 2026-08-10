@@ -1,0 +1,7 @@
+cli:
+  cmds:
+    system:
+      ping:
+        name: Ping
+        key: ping
+        group_key: system

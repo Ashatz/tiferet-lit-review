@@ -1,0 +1,30 @@
+sessions:
+  lit_review:
+    name: Literature Review Knowledge Base
+    description: Sourced, thematically-synthesized literature review knowledge base
+    services:
+      logging_service:
+        module_path: tiferet.repos.logging
+        class_name: LoggingConfigRepository
+        params:
+          logging_config: app/assets/app.yml
+      di_service:
+        module_path: tiferet.repos.di
+        class_name: DIConfigRepository
+        params:
+          di_config: app/assets/di.yml
+      error_service:
+        module_path: tiferet.repos.error
+        class_name: ErrorConfigRepository
+        params:
+          error_config: app/assets/error.yml
+      feature_service:
+        module_path: tiferet.repos.feature
+        class_name: FeatureConfigRepository
+        params:
+          feature_config: app/assets/feature.yml
+      cli_service:
+        module_path: tiferet.repos.cli
+        class_name: CliConfigRepository
+        params:
+          cli_config: app/assets/cli.yml

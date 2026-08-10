@@ -1,0 +1,4 @@
+services:
+  ping_event:
+    module_path: app.events.system
+    class_name: Ping
