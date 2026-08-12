@@ -5,3 +5,59 @@ cli:
         name: Ping
         key: ping
         group_key: system
+    source:
+      add:
+        name: Add Source
+        key: add
+        group_key: source
+        args:
+          - name_or_flags: ["--medium"]
+            required: true
+            description: "The source medium (e.g. pdf, book)."
+          - name_or_flags: ["--authors"]
+            type: list
+            required: true
+            description: "The source authors (space-separated)."
+          - name_or_flags: ["--year"]
+            type: int
+            required: true
+            description: "The source publication year."
+          - name_or_flags: ["--title"]
+            required: true
+            description: "The source title."
+          - name_or_flags: ["--container-title"]
+            required: false
+            description: "The journal or collection title, where applicable."
+          - name_or_flags: ["--publisher"]
+            required: false
+            description: "The source publisher, where applicable."
+      list:
+        name: List Sources
+        key: list
+        group_key: source
+    citation:
+      add:
+        name: Add Citation
+        key: add
+        group_key: citation
+        args:
+          - name_or_flags: ["--source-id"]
+            required: true
+            description: "The identifier of the source this citation was pulled from."
+          - name_or_flags: ["--locator"]
+            required: true
+            description: "The precise locator of the excerpt within its source."
+          - name_or_flags: ["--excerpt"]
+            required: true
+            description: "The quoted or paraphrased text pulled from the source."
+          - name_or_flags: ["--context-note"]
+            required: false
+            description: "An optional note describing the excerpt's surrounding context."
+      list:
+        name: List Citations
+        key: list
+        group_key: citation
+        args:
+          - name_or_flags: ["--source-id"]
+            required: true
+            description: "The source identifier to filter citations by."
