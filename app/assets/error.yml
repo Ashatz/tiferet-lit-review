@@ -14,3 +14,8 @@ errors:
     message:
       - lang: en_US
         text: "Invalid locator '{locator}' for convention '{locator_convention}'."
+  THEME_NOT_FOUND:
+    name: Theme Not Found
+    message:
+      - lang: en_US
+        text: "Theme not found: {id}."
