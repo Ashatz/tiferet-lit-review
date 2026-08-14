@@ -33,3 +33,24 @@ features:
       steps:
         - name: Update Citation
           service_id: update_citation_event
+  theme:
+    add:
+      name: Add Theme
+      steps:
+        - name: Add Theme
+          service_id: add_theme_event
+    list:
+      name: List Themes
+      steps:
+        - name: List Themes
+          service_id: list_themes_event
+    link:
+      name: Link Citation To Theme
+      steps:
+        - name: Link Citation To Theme
+          service_id: link_citation_to_theme_event
+    show:
+      name: Show Theme
+      steps:
+        - name: Show Theme
+          service_id: show_theme_event

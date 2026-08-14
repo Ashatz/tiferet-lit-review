@@ -98,3 +98,35 @@ cli:
           - name_or_flags: ["--context-note"]
             required: false
             description: "The updated surrounding-context note."
+    theme:
+      add:
+        name: Add Theme
+        key: add
+        group_key: theme
+        args:
+          - name_or_flags: ["-n", "--name"]
+            required: true
+            description: "The short label for the theme."
+      list:
+        name: List Themes
+        key: list
+        group_key: theme
+      link:
+        name: Link Citation To Theme
+        key: link
+        group_key: theme
+        args:
+          - name_or_flags: ["-c", "--citation-id"]
+            required: true
+            description: "The citation identifier to link."
+          - name_or_flags: ["-t", "--theme-id"]
+            required: true
+            description: "The theme identifier to link the citation to."
+      show:
+        name: Show Theme
+        key: show
+        group_key: theme
+        args:
+          - name_or_flags: ["-i", "--id"]
+            required: true
+            description: "The theme identifier to show."

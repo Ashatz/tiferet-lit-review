@@ -33,3 +33,34 @@ services:
   update_citation_event:
     module_path: app.events.citation
     class_name: UpdateCitation
+  theme_service:
+    module_path: app.repos.theme
+    class_name: ThemeH5Repository
+    parameters:
+      h5_file: app/assets/lit_review.h5
+  linkage_service:
+    module_path: app.repos.linkage
+    class_name: LinkageH5Repository
+    parameters:
+      h5_file: app/assets/lit_review.h5
+  theme_synthesis_service:
+    module_path: app.utils.synthesis
+    class_name: NaiveThemeSynthesizer
+  add_theme_event:
+    module_path: app.events.theme
+    class_name: AddTheme
+  get_theme_event:
+    module_path: app.events.theme
+    class_name: GetTheme
+  list_themes_event:
+    module_path: app.events.theme
+    class_name: ListThemes
+  list_linkages_for_theme_event:
+    module_path: app.events.theme
+    class_name: ListLinkagesForTheme
+  link_citation_to_theme_event:
+    module_path: app.events.theme
+    class_name: LinkCitationToTheme
+  show_theme_event:
+    module_path: app.events.theme
+    class_name: ShowTheme
