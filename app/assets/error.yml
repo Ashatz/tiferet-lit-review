@@ -19,3 +19,8 @@ errors:
     message:
       - lang: en_US
         text: "Theme not found: {id}."
+  CITATION_STYLE_NOT_FOUND:
+    name: Citation Style Not Found
+    message:
+      - lang: en_US
+        text: "Citation style not found: {id}."

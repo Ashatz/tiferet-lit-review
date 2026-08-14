@@ -7,10 +7,11 @@ from typing import Any, ClassVar, Dict, Optional
 
 # ** infra
 import tables
+from pydantic import Field
 from tiferet_h5 import TableObject
 
 # ** app
-from tiferet.mappers.core import Aggregate
+from tiferet.mappers.core import Aggregate, TransferObject
 
 from ..domain.citation import Citation
 
@@ -84,3 +85,59 @@ class CitationTableObject(Citation, TableObject):
         'context_note': tables.StringCol(4000),
         'created_at': tables.Int64Col(),
     }
+
+
+# ** mapper: citation_response
+class CitationResponse(Citation, TransferObject):
+    '''
+    Transfer object for citation render responses.
+
+    Extends Citation so the excerpt and locator serialize natively; adds the
+    on-demand in-text and reference-list renderings.
+    '''
+
+    # * attribute: _ROLES
+    _ROLES: ClassVar[Dict[str, Dict[str, Any]]] = {
+        'to_data': {
+            'exclude': {'created_at'},
+        },
+    }
+
+    # * attribute: formatted_reference
+    formatted_reference: str = Field(
+        default='',
+        description='The reference-list rendering for the requested style.',
+    )
+
+    # * attribute: in_text_citation
+    in_text_citation: str = Field(
+        default='',
+        description='The in-text rendering for the requested style.',
+    )
+
+    # * method: from_aggregate (static)
+    @staticmethod
+    def from_aggregate(
+            citation: Citation,
+            formatted_reference: str,
+            in_text_citation: str,
+        ) -> 'CitationResponse':
+        '''
+        Map a Citation into a CitationResponse.
+
+        :param citation: The citation to map.
+        :type citation: Citation
+        :param formatted_reference: The reference-list rendering.
+        :type formatted_reference: str
+        :param in_text_citation: The in-text rendering.
+        :type in_text_citation: str
+        :return: The citation response transfer object.
+        :rtype: CitationResponse
+        '''
+
+        # Delegate to TransferObject.from_model, attaching the renderings.
+        return CitationResponse.from_model(
+            citation,
+            formatted_reference=formatted_reference,
+            in_text_citation=in_text_citation,
+        )

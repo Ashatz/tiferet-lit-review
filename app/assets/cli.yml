@@ -98,6 +98,17 @@ cli:
           - name_or_flags: ["--context-note"]
             required: false
             description: "The updated surrounding-context note."
+      render:
+        name: Render Citation
+        key: render
+        group_key: citation
+        args:
+          - name_or_flags: ["-i", "--id"]
+            required: true
+            description: "The citation identifier to render."
+          - name_or_flags: ["-s", "--style"]
+            required: true
+            description: "The citation style identifier (e.g. apa)."
     theme:
       add:
         name: Add Theme

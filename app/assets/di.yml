@@ -33,6 +33,14 @@ services:
   update_citation_event:
     module_path: app.events.citation
     class_name: UpdateCitation
+  citation_style_service:
+    module_path: app.repos.citation_style
+    class_name: CitationStyleConfigRepository
+    parameters:
+      citation_style_config: app/assets/citation_styles.yml
+  render_citation_event:
+    module_path: app.events.citation_style
+    class_name: RenderCitation
   theme_service:
     module_path: app.repos.theme
     class_name: ThemeH5Repository
