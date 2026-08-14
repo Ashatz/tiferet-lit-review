@@ -2,12 +2,17 @@
 
 # *** imports
 
+# ** core
+from typing import Any, ClassVar, Dict, List, Optional
+
 # ** infra
+from pydantic import Field
 from tiferet_h5 import NodeObject
 
 # ** app
-from tiferet.mappers.core import Aggregate
+from tiferet.mappers.core import Aggregate, TransferObject
 
+from ..domain.citation import Citation
 from ..domain.theme import Theme
 
 # *** mappers
@@ -40,3 +45,49 @@ class ThemeNodeObject(Theme, NodeObject):
     HDF5 node mapper for Theme: one HDF5 group per theme, with theme fields
     stored as node attributes.
     '''
+
+
+# ** mapper: theme_response
+class ThemeResponse(Theme, TransferObject):
+    '''
+    Transfer object for theme CLI/API responses.
+
+    Extends Theme so the synthesis fields serialize natively; adds the linked
+    citations when a show/display needs more than the theme itself.
+    '''
+
+    # * attribute: _ROLES
+    _ROLES: ClassVar[Dict[str, Dict[str, Any]]] = {
+        'to_data': {
+            'exclude': {'created_at'},
+        },
+    }
+
+    # * attribute: citations
+    citations: List[Citation] = Field(
+        default_factory=list,
+        description='Linked citations included on show/display responses.',
+    )
+
+    # * method: from_aggregate (static)
+    @staticmethod
+    def from_aggregate(
+            theme: ThemeAggregate,
+            citations: Optional[List[Citation]] = None,
+        ) -> 'ThemeResponse':
+        '''
+        Map a ThemeAggregate into a ThemeResponse.
+
+        :param theme: The theme aggregate to map.
+        :type theme: ThemeAggregate
+        :param citations: Optional linked citations to include on the response.
+        :type citations: Optional[List[Citation]]
+        :return: The theme response transfer object.
+        :rtype: ThemeResponse
+        '''
+
+        # Delegate to TransferObject.from_model, attaching citations when given.
+        return ThemeResponse.from_model(
+            theme,
+            citations=citations or [],
+        )

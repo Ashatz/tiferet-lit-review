@@ -3,20 +3,20 @@
 # *** imports
 
 # ** core
-from typing import List, Union
+from typing import List, Optional
 from uuid import uuid4
 
 # ** app
 from tiferet import DomainEvent
 
-from ..domain.theme import slugify_theme_name
+from ..domain.linkage import Linkage
+from ..domain.theme import Theme, slugify_theme_name
 from ..interfaces.citation import CitationService
-from ..interfaces.source import SourceService
 from ..interfaces.linkage import LinkageService
 from ..interfaces.synthesis import ThemeSynthesisService
 from ..interfaces.theme import ThemeService
 from ..mappers.linkage import LinkageAggregate
-from ..mappers.theme import ThemeAggregate
+from ..mappers.theme import ThemeAggregate, ThemeResponse
 from .citation import CITATION_NOT_FOUND_ID
 
 # *** constants
@@ -55,7 +55,7 @@ class AddTheme(ThemeEvent):
 
     # * method: execute
     @DomainEvent.parameters_required(['name'])
-    def execute(self, name: str, **kwargs) -> ThemeAggregate:
+    def execute(self, name: str, **kwargs) -> Theme:
         '''
         Add a new theme.
 
@@ -63,8 +63,8 @@ class AddTheme(ThemeEvent):
         :type name: str
         :param kwargs: Additional keyword arguments.
         :type kwargs: dict
-        :return: The created theme aggregate.
-        :rtype: ThemeAggregate
+        :return: The created theme.
+        :rtype: Theme
         '''
 
         # Derive a slug id from the name; fall back to UUID on collision.
@@ -92,7 +92,7 @@ class GetTheme(ThemeEvent):
 
     # * method: execute
     @DomainEvent.parameters_required(['id'])
-    def execute(self, id: str, **kwargs) -> ThemeAggregate:
+    def execute(self, id: str, **kwargs) -> Theme:
         '''
         Retrieve a theme by ID.
 
@@ -100,8 +100,8 @@ class GetTheme(ThemeEvent):
         :type id: str
         :param kwargs: Additional keyword arguments.
         :type kwargs: dict
-        :return: The theme aggregate.
-        :rtype: ThemeAggregate
+        :return: The theme.
+        :rtype: Theme
         '''
 
         # Retrieve the theme from the service.
@@ -125,18 +125,20 @@ class ListThemes(ThemeEvent):
     '''
 
     # * method: execute
-    def execute(self, **kwargs) -> List[ThemeAggregate]:
+    def execute(self, name: Optional[str] = None, **kwargs) -> List[Theme]:
         '''
-        List all themes.
+        List themes, optionally filtered by name.
 
-        :param kwargs: Additional keyword arguments (unused).
+        :param name: Optional theme name to match exactly.
+        :type name: Optional[str]
+        :param kwargs: Additional keyword arguments.
         :type kwargs: dict
-        :return: All theme aggregates.
-        :rtype: List[ThemeAggregate]
+        :return: The matching themes.
+        :rtype: List[Theme]
         '''
 
-        # Return all themes from the service.
-        return self.theme_service.list()
+        # Return themes from the service, applying the optional name filter.
+        return self.theme_service.list(name=name)
 
 # ** event: list_linkages_for_theme
 class ListLinkagesForTheme(DomainEvent):
@@ -161,7 +163,7 @@ class ListLinkagesForTheme(DomainEvent):
 
     # * method: execute
     @DomainEvent.parameters_required(['theme_id'])
-    def execute(self, theme_id: str, **kwargs) -> List[LinkageAggregate]:
+    def execute(self, theme_id: str, **kwargs) -> List[Linkage]:
         '''
         List all linkages for a theme.
 
@@ -170,7 +172,7 @@ class ListLinkagesForTheme(DomainEvent):
         :param kwargs: Additional keyword arguments.
         :type kwargs: dict
         :return: The linkages belonging to the theme, in insertion order.
-        :rtype: List[LinkageAggregate]
+        :rtype: List[Linkage]
         '''
 
         # Return the linkages filtered by theme_id.
@@ -182,10 +184,9 @@ class LinkCitationToTheme(DomainEvent):
     Attach a citation to a theme and reconsider the theme's synthesis against
     the full linkage set.
 
-    On a *new* linkage this event returns the updated ThemeAggregate. On an
-    idempotent re-link of an existing (citation_id, theme_id) pair it returns
-    the existing LinkageAggregate without re-synthesizing. CLI wiring should
-    follow a successful link with theme show/get for a stable presentation.
+    Always returns the theme. A new linkage re-synthesizes first; an
+    idempotent re-link of an existing (citation_id, theme_id) pair returns
+    the current theme without re-synthesizing.
     '''
 
     # * attribute: theme_service
@@ -232,7 +233,7 @@ class LinkCitationToTheme(DomainEvent):
             citation_id: str,
             theme_id: str,
             **kwargs,
-        ) -> Union[ThemeAggregate, LinkageAggregate]:
+        ) -> Theme:
         '''
         Link a citation to a theme and refresh the theme synthesis when new.
 
@@ -242,9 +243,8 @@ class LinkCitationToTheme(DomainEvent):
         :type theme_id: str
         :param kwargs: Additional keyword arguments.
         :type kwargs: dict
-        :return: The updated theme on a new link, or the existing linkage on
-            an idempotent re-link.
-        :rtype: Union[ThemeAggregate, LinkageAggregate]
+        :return: The theme after linking (unchanged on an idempotent re-link).
+        :rtype: Theme
         '''
 
         # Verify the citation exists.
@@ -271,7 +271,7 @@ class LinkCitationToTheme(DomainEvent):
             citation_id=citation_id,
         )
         if existing:
-            return existing[0]
+            return theme
 
         # Save the new linkage.
         new_linkage = LinkageAggregate(
@@ -304,8 +304,7 @@ class LinkCitationToTheme(DomainEvent):
 # ** event: show_theme
 class ShowTheme(ThemeEvent):
     '''
-    Display a theme's synthesized description plus each linked citation's
-    raw excerpt and source short-reference (no citation-style rendering).
+    Display a theme's synthesized description plus each linked citation.
     '''
 
     # * attribute: linkage_service
@@ -314,15 +313,11 @@ class ShowTheme(ThemeEvent):
     # * attribute: citation_service
     citation_service: CitationService
 
-    # * attribute: source_service
-    source_service: SourceService
-
     # * init
     def __init__(self,
             theme_service: ThemeService,
             linkage_service: LinkageService,
             citation_service: CitationService,
-            source_service: SourceService,
         ) -> None:
         '''
         Initialize the ShowTheme event.
@@ -333,21 +328,18 @@ class ShowTheme(ThemeEvent):
         :type linkage_service: LinkageService
         :param citation_service: The citation service dependency.
         :type citation_service: CitationService
-        :param source_service: Used to resolve a raw Author (Year) label.
-        :type source_service: SourceService
         '''
 
         # Initialize the shared theme service dependency.
         super().__init__(theme_service)
 
-        # Set the remaining display dependencies.
+        # Set the remaining show dependencies.
         self.linkage_service = linkage_service
         self.citation_service = citation_service
-        self.source_service = source_service
 
     # * method: execute
     @DomainEvent.parameters_required(['id'])
-    def execute(self, id: str, **kwargs) -> dict:
+    def execute(self, id: str, **kwargs) -> Theme:
         '''
         Show a theme and its linked citations.
 
@@ -355,8 +347,8 @@ class ShowTheme(ThemeEvent):
         :type id: str
         :param kwargs: Additional keyword arguments.
         :type kwargs: dict
-        :return: A display dict with the theme synthesis and linked citations.
-        :rtype: dict
+        :return: The theme response, including linked citations.
+        :rtype: Theme
         '''
 
         # Retrieve the theme and verify it exists.
@@ -368,33 +360,12 @@ class ShowTheme(ThemeEvent):
             id=id,
         )
 
-        # Load linkages and hydrate each citation with a raw source label.
-        linkages = self.linkage_service.list(theme_id=id)
+        # Load each linked citation aggregate in linkage order.
         citations = []
-        for linkage in linkages:
+        for linkage in self.linkage_service.list(theme_id=id):
             citation = self.citation_service.get(linkage.citation_id)
-            if citation is None:
-                continue
-            source = self.source_service.get(citation.source_id)
-            if source is None or not source.authors:
-                source_label = citation.source_id
-            elif len(source.authors) == 1:
-                source_label = f'{source.authors[0]} ({source.year})'
-            else:
-                source_label = f'{source.authors[0]} et al. ({source.year})'
-            citations.append({
-                'citation_id': citation.id,
-                'source_id': citation.source_id,
-                'source': source_label,
-                'locator': citation.locator,
-                'excerpt': citation.excerpt,
-            })
+            if citation is not None:
+                citations.append(citation)
 
-        # Return the theme synthesis plus the linked citation display rows.
-        return {
-            'id': theme.id,
-            'name': theme.name,
-            'synthesized_description': theme.synthesized_description,
-            'linkage_count': theme.linkage_count,
-            'citations': citations,
-        }
+        # Map the theme aggregate into a response that includes the citations.
+        return ThemeResponse.from_aggregate(theme, citations=citations)

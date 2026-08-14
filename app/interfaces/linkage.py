@@ -47,13 +47,17 @@ class LinkageService(Service):
 
     # * method: list
     @abstractmethod
-    def list(self, **filters) -> List[LinkageAggregate]:
+    def list(self,
+            theme_id: Optional[str] = None,
+            citation_id: Optional[str] = None,
+        ) -> List[LinkageAggregate]:
         '''
-        List Linkage aggregates, optionally filtered (e.g. by theme_id or
-        citation_id).
+        List Linkage aggregates, optionally filtered by theme or citation.
 
-        :param filters: Optional filter criteria.
-        :type filters: dict
+        :param theme_id: Optional theme identifier to match.
+        :type theme_id: Optional[str]
+        :param citation_id: Optional citation identifier to match.
+        :type citation_id: Optional[str]
         :return: The matching linkage aggregates, in insertion order.
         :rtype: List[LinkageAggregate]
         '''

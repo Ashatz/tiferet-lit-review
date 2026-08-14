@@ -49,10 +49,6 @@ features:
       steps:
         - name: Link Citation To Theme
           service_id: link_citation_to_theme_event
-        - name: Get Theme
-          service_id: get_theme_event
-          params:
-            id: $r.theme_id
     show:
       name: Show Theme
       steps:

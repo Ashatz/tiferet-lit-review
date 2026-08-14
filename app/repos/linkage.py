@@ -86,12 +86,17 @@ class LinkageH5Repository(LinkageService, H5Repository):
         return LinkageTableObject.from_row(match).map(LinkageAggregate)
 
     # * method: list
-    def list(self, **filters) -> List[LinkageAggregate]:
+    def list(self,
+            theme_id: Optional[str] = None,
+            citation_id: Optional[str] = None,
+        ) -> List[LinkageAggregate]:
         '''
-        List linkages, optionally filtered by theme_id and/or citation_id.
+        List linkages, optionally filtered by theme and/or citation.
 
-        :param filters: Accepts optional theme_id and citation_id filters.
-        :type filters: dict
+        :param theme_id: Optional theme identifier to match.
+        :type theme_id: Optional[str]
+        :param citation_id: Optional citation identifier to match.
+        :type citation_id: Optional[str]
         :return: The matching linkage aggregates, in insertion order.
         :rtype: List[LinkageAggregate]
         '''
@@ -102,11 +107,9 @@ class LinkageH5Repository(LinkageService, H5Repository):
                 return []
             rows = h5.read_rows(LINKAGES_TABLE_PATH)
 
-        # Apply optional theme_id / citation_id filters in-memory.
-        theme_id = filters.get('theme_id')
+        # Apply the optional theme and citation filters in-memory.
         if theme_id is not None:
             rows = [row for row in rows if row.get('theme_id') == theme_id]
-        citation_id = filters.get('citation_id')
         if citation_id is not None:
             rows = [row for row in rows if row.get('citation_id') == citation_id]
 

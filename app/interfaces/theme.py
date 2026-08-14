@@ -47,12 +47,12 @@ class ThemeService(Service):
 
     # * method: list
     @abstractmethod
-    def list(self, **filters) -> List[ThemeAggregate]:
+    def list(self, name: Optional[str] = None) -> List[ThemeAggregate]:
         '''
-        List Theme aggregates, optionally filtered.
+        List Theme aggregates, optionally filtered by name.
 
-        :param filters: Optional filter criteria.
-        :type filters: dict
+        :param name: Optional theme name to match exactly.
+        :type name: Optional[str]
         :return: The matching theme aggregates.
         :rtype: List[ThemeAggregate]
         '''

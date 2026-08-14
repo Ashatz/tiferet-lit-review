@@ -78,13 +78,13 @@ class ThemeH5Repository(ThemeService, H5Repository):
         return ThemeNodeObject.from_attrs(attrs).map(ThemeAggregate)
 
     # * method: list
-    def list(self, **filters) -> List[ThemeAggregate]:
+    def list(self, name: Optional[str] = None) -> List[ThemeAggregate]:
         '''
-        List all themes.
+        List themes, optionally filtered by name.
 
-        :param filters: Unused; themes support no filters at v1.
-        :type filters: dict
-        :return: All theme aggregates.
+        :param name: Optional theme name to match exactly.
+        :type name: Optional[str]
+        :return: The matching theme aggregates.
         :rtype: List[ThemeAggregate]
         '''
 
@@ -99,6 +99,10 @@ class ThemeH5Repository(ThemeService, H5Repository):
                 ).map(ThemeAggregate)
                 for child_name in group._v_children
             ]
+
+        # Apply the optional exact-name filter.
+        if name is not None:
+            themes = [theme for theme in themes if theme.name == name]
 
         # Return the mapped theme aggregates.
         return themes
