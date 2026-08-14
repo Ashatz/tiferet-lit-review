@@ -8,12 +8,19 @@ from typing import List, Optional
 # ** app
 from tiferet import DomainEvent
 
-from .. import assets as a
-from ..domain.citation import Citation
 from ..domain.source import is_valid_locator
 from ..interfaces.citation import CitationService
 from ..interfaces.source import SourceService
 from ..mappers.citation import CitationAggregate
+from .source import SOURCE_NOT_FOUND_ID
+
+# *** constants
+
+# ** constant: citation_not_found_id
+CITATION_NOT_FOUND_ID = 'CITATION_NOT_FOUND'
+
+# ** constant: invalid_locator_id
+INVALID_LOCATOR_ID = 'INVALID_LOCATOR'
 
 # *** events
 
@@ -73,7 +80,7 @@ class AddCitation(CitationEvent):
             excerpt: str,
             context_note: Optional[str] = None,
             **kwargs,
-        ) -> Citation:
+        ) -> CitationAggregate:
         '''
         Add a new citation.
 
@@ -87,23 +94,23 @@ class AddCitation(CitationEvent):
         :type context_note: Optional[str]
         :param kwargs: Additional keyword arguments.
         :type kwargs: dict
-        :return: The created Citation domain object.
-        :rtype: Citation
+        :return: The created citation aggregate.
+        :rtype: CitationAggregate
         '''
 
         # Verify the parent source exists.
         source = self.source_service.get(source_id)
         self.verify(
             source is not None,
-            a.error.SOURCE_NOT_FOUND_ID,
+            SOURCE_NOT_FOUND_ID,
             message=f'Source not found: {source_id}.',
-            source_id=source_id,
+            id=source_id,
         )
 
         # Verify the locator shape matches the source's locator convention.
         self.verify(
             is_valid_locator(source.locator_convention, locator),
-            a.error.INVALID_LOCATOR_ID,
+            INVALID_LOCATOR_ID,
             message=f'Invalid locator {locator!r} for convention {source.locator_convention!r}.',
             locator=locator,
             locator_convention=source.locator_convention,
@@ -129,7 +136,7 @@ class GetCitation(CitationEvent):
 
     # * method: execute
     @DomainEvent.parameters_required(['id'])
-    def execute(self, id: str, **kwargs) -> Citation:
+    def execute(self, id: str, **kwargs) -> CitationAggregate:
         '''
         Retrieve a citation by ID.
 
@@ -137,8 +144,8 @@ class GetCitation(CitationEvent):
         :type id: str
         :param kwargs: Additional keyword arguments.
         :type kwargs: dict
-        :return: The Citation domain object.
-        :rtype: Citation
+        :return: The citation aggregate.
+        :rtype: CitationAggregate
         '''
 
         # Retrieve the citation from the service.
@@ -147,7 +154,7 @@ class GetCitation(CitationEvent):
         # Verify the citation exists.
         self.verify(
             citation is not None,
-            a.error.CITATION_NOT_FOUND_ID,
+            CITATION_NOT_FOUND_ID,
             message=f'Citation not found: {id}.',
             id=id,
         )
@@ -163,7 +170,7 @@ class ListCitationsForSource(CitationEvent):
 
     # * method: execute
     @DomainEvent.parameters_required(['source_id'])
-    def execute(self, source_id: str, **kwargs) -> List[Citation]:
+    def execute(self, source_id: str, **kwargs) -> List[CitationAggregate]:
         '''
         List all citations for a source.
 
@@ -172,8 +179,103 @@ class ListCitationsForSource(CitationEvent):
         :param kwargs: Additional keyword arguments.
         :type kwargs: dict
         :return: The citations belonging to the source, in insertion order.
-        :rtype: List[Citation]
+        :rtype: List[CitationAggregate]
         '''
 
         # Return the citations filtered by source_id.
         return self.citation_service.list(source_id=source_id)
+
+# ** event: update_citation
+class UpdateCitation(CitationEvent):
+    '''
+    Update mutable fields on an existing Citation.
+    '''
+
+    # * attribute: source_service
+    source_service: SourceService
+
+    # * init
+    def __init__(self, citation_service: CitationService, source_service: SourceService) -> None:
+        '''
+        Initialize the UpdateCitation event.
+
+        :param citation_service: The citation service dependency.
+        :type citation_service: CitationService
+        :param source_service: The source service dependency, used to
+            re-validate locator shape against the parent source.
+        :type source_service: SourceService
+        '''
+
+        # Initialize the shared citation service dependency.
+        super().__init__(citation_service)
+
+        # Set the source service dependency.
+        self.source_service = source_service
+
+    # * method: execute
+    @DomainEvent.parameters_required(['id'])
+    def execute(self,
+            id: str,
+            locator: Optional[str] = None,
+            excerpt: Optional[str] = None,
+            context_note: Optional[str] = None,
+            **kwargs,
+        ) -> CitationAggregate:
+        '''
+        Update an existing citation.
+
+        :param id: The citation identifier.
+        :type id: str
+        :param locator: The updated locator, if provided.
+        :type locator: Optional[str]
+        :param excerpt: The updated excerpt, if provided.
+        :type excerpt: Optional[str]
+        :param context_note: The updated context note, if provided.
+        :type context_note: Optional[str]
+        :param kwargs: Additional keyword arguments.
+        :type kwargs: dict
+        :return: The updated citation aggregate.
+        :rtype: CitationAggregate
+        '''
+
+        # Retrieve the citation and verify it exists.
+        citation = self.citation_service.get(id)
+        self.verify(
+            citation is not None,
+            CITATION_NOT_FOUND_ID,
+            message=f'Citation not found: {id}.',
+            id=id,
+        )
+
+        # Re-validate locator shape against the parent source when changing it.
+        if locator is not None:
+            source = self.source_service.get(citation.source_id)
+            self.verify(
+                source is not None,
+                SOURCE_NOT_FOUND_ID,
+                message=f'Source not found: {citation.source_id}.',
+                id=citation.source_id,
+            )
+            self.verify(
+                is_valid_locator(source.locator_convention, locator),
+                INVALID_LOCATOR_ID,
+                message=(
+                    f'Invalid locator {locator!r} for convention '
+                    f'{source.locator_convention!r}.'
+                ),
+                locator=locator,
+                locator_convention=source.locator_convention,
+            )
+            citation.update_locator(locator)
+
+        # Apply optional excerpt and context-note mutations.
+        if excerpt is not None:
+            citation.update_excerpt(excerpt)
+        if context_note is not None:
+            citation.update_context_note(context_note=context_note)
+
+        # Persist the updated citation via id-upsert save.
+        self.citation_service.save(citation)
+
+        # Return the updated citation.
+        return citation

@@ -8,10 +8,13 @@ from typing import List, Optional
 # ** app
 from tiferet import DomainEvent
 
-from .. import assets as a
-from ..domain.source import Source
 from ..interfaces.source import SourceService
 from ..mappers.source import SourceAggregate
+
+# *** constants
+
+# ** constant: source_not_found_id
+SOURCE_NOT_FOUND_ID = 'SOURCE_NOT_FOUND'
 
 # *** events
 
@@ -52,7 +55,7 @@ class AddSource(SourceEvent):
             container_title: Optional[str] = None,
             publisher: Optional[str] = None,
             **kwargs,
-        ) -> Source:
+        ) -> SourceAggregate:
         '''
         Add a new source.
 
@@ -70,8 +73,8 @@ class AddSource(SourceEvent):
         :type publisher: Optional[str]
         :param kwargs: Additional keyword arguments.
         :type kwargs: dict
-        :return: The created Source domain object.
-        :rtype: Source
+        :return: The created source aggregate.
+        :rtype: SourceAggregate
         '''
 
         # Create and save the source aggregate; the medium/locator_convention
@@ -97,7 +100,7 @@ class GetSource(SourceEvent):
 
     # * method: execute
     @DomainEvent.parameters_required(['id'])
-    def execute(self, id: str, **kwargs) -> Source:
+    def execute(self, id: str, **kwargs) -> SourceAggregate:
         '''
         Retrieve a source by ID.
 
@@ -105,8 +108,8 @@ class GetSource(SourceEvent):
         :type id: str
         :param kwargs: Additional keyword arguments.
         :type kwargs: dict
-        :return: The Source domain object.
-        :rtype: Source
+        :return: The source aggregate.
+        :rtype: SourceAggregate
         '''
 
         # Retrieve the source from the service.
@@ -115,7 +118,7 @@ class GetSource(SourceEvent):
         # Verify the source exists.
         self.verify(
             source is not None,
-            a.error.SOURCE_NOT_FOUND_ID,
+            SOURCE_NOT_FOUND_ID,
             message=f'Source not found: {id}.',
             id=id,
         )
@@ -130,15 +133,75 @@ class ListSources(SourceEvent):
     '''
 
     # * method: execute
-    def execute(self, **kwargs) -> List[Source]:
+    def execute(self, **kwargs) -> List[SourceAggregate]:
         '''
         List all sources.
 
         :param kwargs: Additional keyword arguments (unused).
         :type kwargs: dict
-        :return: All sources.
-        :rtype: List[Source]
+        :return: All source aggregates.
+        :rtype: List[SourceAggregate]
         '''
 
         # Return all sources from the service.
         return self.source_service.list()
+
+# ** event: update_source
+class UpdateSource(SourceEvent):
+    '''
+    Update mutable bibliographic fields on an existing Source.
+    '''
+
+    # * method: execute
+    @DomainEvent.parameters_required(['id'])
+    def execute(self,
+            id: str,
+            authors: Optional[List[str]] = None,
+            year: Optional[int] = None,
+            title: Optional[str] = None,
+            container_title: Optional[str] = None,
+            publisher: Optional[str] = None,
+            **kwargs,
+        ) -> SourceAggregate:
+        '''
+        Update an existing source.
+
+        :param id: The source identifier.
+        :type id: str
+        :param authors: The updated author list, if provided.
+        :type authors: Optional[List[str]]
+        :param year: The updated publication year, if provided.
+        :type year: Optional[int]
+        :param title: The updated title, if provided.
+        :type title: Optional[str]
+        :param container_title: The updated container title, if provided.
+        :type container_title: Optional[str]
+        :param publisher: The updated publisher, if provided.
+        :type publisher: Optional[str]
+        :param kwargs: Additional keyword arguments.
+        :type kwargs: dict
+        :return: The updated source aggregate.
+        :rtype: SourceAggregate
+        '''
+
+        # Retrieve the source and verify it exists.
+        source = self.source_service.get(id)
+        self.verify(
+            source is not None,
+            SOURCE_NOT_FOUND_ID,
+            message=f'Source not found: {id}.',
+            id=id,
+        )
+
+        # Apply the requested bibliographic mutations.
+        source.update_record(
+            authors=authors,
+            year=year,
+            title=title,
+            container_title=container_title,
+            publisher=publisher,
+        )
+        self.source_service.save(source)
+
+        # Return the updated source.
+        return source

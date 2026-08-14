@@ -1,28 +1,23 @@
 cli:
   cmds:
-    system:
-      ping:
-        name: Ping
-        key: ping
-        group_key: system
     source:
       add:
         name: Add Source
         key: add
         group_key: source
         args:
-          - name_or_flags: ["--medium"]
+          - name_or_flags: ["-m", "--medium"]
             required: true
             description: "The source medium (e.g. pdf, book)."
-          - name_or_flags: ["--authors"]
+          - name_or_flags: ["-a", "--authors"]
             type: list
             required: true
             description: "The source authors (space-separated)."
-          - name_or_flags: ["--year"]
+          - name_or_flags: ["-y", "--year"]
             type: int
             required: true
             description: "The source publication year."
-          - name_or_flags: ["--title"]
+          - name_or_flags: ["-t", "--title"]
             required: true
             description: "The source title."
           - name_or_flags: ["--container-title"]
@@ -35,19 +30,44 @@ cli:
         name: List Sources
         key: list
         group_key: source
+      update:
+        name: Update Source
+        key: update
+        group_key: source
+        args:
+          - name_or_flags: ["-i", "--id"]
+            required: true
+            description: "The source identifier to update."
+          - name_or_flags: ["-a", "--authors"]
+            type: list
+            required: false
+            description: "The updated source authors (space-separated)."
+          - name_or_flags: ["-y", "--year"]
+            type: int
+            required: false
+            description: "The updated source publication year."
+          - name_or_flags: ["-t", "--title"]
+            required: false
+            description: "The updated source title."
+          - name_or_flags: ["--container-title"]
+            required: false
+            description: "The updated journal or collection title."
+          - name_or_flags: ["--publisher"]
+            required: false
+            description: "The updated source publisher."
     citation:
       add:
         name: Add Citation
         key: add
         group_key: citation
         args:
-          - name_or_flags: ["--source-id"]
+          - name_or_flags: ["-s", "--source-id"]
             required: true
             description: "The identifier of the source this citation was pulled from."
-          - name_or_flags: ["--locator"]
+          - name_or_flags: ["-l", "--locator"]
             required: true
             description: "The precise locator of the excerpt within its source."
-          - name_or_flags: ["--excerpt"]
+          - name_or_flags: ["-e", "--excerpt"]
             required: true
             description: "The quoted or paraphrased text pulled from the source."
           - name_or_flags: ["--context-note"]
@@ -58,6 +78,23 @@ cli:
         key: list
         group_key: citation
         args:
-          - name_or_flags: ["--source-id"]
+          - name_or_flags: ["-s", "--source-id"]
             required: true
             description: "The source identifier to filter citations by."
+      update:
+        name: Update Citation
+        key: update
+        group_key: citation
+        args:
+          - name_or_flags: ["-i", "--id"]
+            required: true
+            description: "The citation identifier to update."
+          - name_or_flags: ["-l", "--locator"]
+            required: false
+            description: "The updated locator of the excerpt within its source."
+          - name_or_flags: ["-e", "--excerpt"]
+            required: false
+            description: "The updated quoted or paraphrased text."
+          - name_or_flags: ["--context-note"]
+            required: false
+            description: "The updated surrounding-context note."

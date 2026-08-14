@@ -9,14 +9,14 @@ from typing import List, Optional
 # ** app
 from tiferet.interfaces.core import Service
 
-from ..domain.source import Source
+from ..mappers.source import SourceAggregate
 
 # *** interfaces
 
 # ** interface: source_service
 class SourceService(Service):
     '''
-    Vertical interface for managing Source domain objects.
+    Vertical interface for managing Source aggregates.
     '''
 
     # * method: exists
@@ -34,37 +34,37 @@ class SourceService(Service):
 
     # * method: get
     @abstractmethod
-    def get(self, id: str) -> Optional[Source]:
+    def get(self, id: str) -> Optional[SourceAggregate]:
         '''
         Retrieve a Source by its ID.
 
         :param id: The source identifier.
         :type id: str
-        :return: The Source domain object, or None if not found.
-        :rtype: Optional[Source]
+        :return: The source aggregate, or None if not found.
+        :rtype: Optional[SourceAggregate]
         '''
         raise NotImplementedError()
 
     # * method: list
     @abstractmethod
-    def list(self, **filters) -> List[Source]:
+    def list(self, **filters) -> List[SourceAggregate]:
         '''
-        List Source domain objects, optionally filtered.
+        List Source aggregates, optionally filtered.
 
         :param filters: Optional filter criteria.
         :type filters: dict
-        :return: The matching sources.
-        :rtype: List[Source]
+        :return: The matching source aggregates.
+        :rtype: List[SourceAggregate]
         '''
         raise NotImplementedError()
 
     # * method: save
     @abstractmethod
-    def save(self, source: Source) -> None:
+    def save(self, source: SourceAggregate) -> None:
         '''
-        Persist a Source domain object.
+        Persist a Source aggregate.
 
-        :param source: The source to persist.
-        :type source: Source
+        :param source: The source aggregate to persist.
+        :type source: SourceAggregate
         '''
         raise NotImplementedError()

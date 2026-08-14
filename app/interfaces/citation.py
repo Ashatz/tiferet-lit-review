@@ -9,14 +9,14 @@ from typing import List, Optional
 # ** app
 from tiferet.interfaces.core import Service
 
-from ..domain.citation import Citation
+from ..mappers.citation import CitationAggregate
 
 # *** interfaces
 
 # ** interface: citation_service
 class CitationService(Service):
     '''
-    Vertical interface for managing Citation domain objects.
+    Vertical interface for managing Citation aggregates.
     '''
 
     # * method: exists
@@ -34,37 +34,37 @@ class CitationService(Service):
 
     # * method: get
     @abstractmethod
-    def get(self, id: str) -> Optional[Citation]:
+    def get(self, id: str) -> Optional[CitationAggregate]:
         '''
         Retrieve a Citation by its ID.
 
         :param id: The citation identifier.
         :type id: str
-        :return: The Citation domain object, or None if not found.
-        :rtype: Optional[Citation]
+        :return: The citation aggregate, or None if not found.
+        :rtype: Optional[CitationAggregate]
         '''
         raise NotImplementedError()
 
     # * method: list
     @abstractmethod
-    def list(self, **filters) -> List[Citation]:
+    def list(self, **filters) -> List[CitationAggregate]:
         '''
-        List Citation domain objects, optionally filtered (e.g. by source_id).
+        List Citation aggregates, optionally filtered (e.g. by source_id).
 
         :param filters: Optional filter criteria.
         :type filters: dict
-        :return: The matching citations, in insertion order.
-        :rtype: List[Citation]
+        :return: The matching citation aggregates, in insertion order.
+        :rtype: List[CitationAggregate]
         '''
         raise NotImplementedError()
 
     # * method: save
     @abstractmethod
-    def save(self, citation: Citation) -> None:
+    def save(self, citation: CitationAggregate) -> None:
         '''
-        Persist a Citation domain object.
+        Persist a Citation aggregate.
 
-        :param citation: The citation to persist.
-        :type citation: Citation
+        :param citation: The citation aggregate to persist.
+        :type citation: CitationAggregate
         '''
         raise NotImplementedError()

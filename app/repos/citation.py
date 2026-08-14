@@ -28,6 +28,9 @@ class CitationH5Repository(CitationService, H5Repository):
     Filtering (by id or source_id) is done in-memory over read_rows results.
     Acceptable at v1 scale (a single researcher's working set); revisit if the
     citations table grows large enough to warrant an in-kernel query.
+
+    ``save`` is an id-based upsert: an existing row with the same id is
+    overwritten in place; otherwise a new row is appended.
     '''
 
     # * init
@@ -111,20 +114,44 @@ class CitationH5Repository(CitationService, H5Repository):
     # * method: save
     def save(self, citation: CitationAggregate) -> None:
         '''
-        Persist a Citation aggregate as a new table row.
+        Persist a Citation aggregate as an id-based upsert.
+
+        When a row with the same id already exists it is overwritten in place
+        via indexed column assignment; otherwise a new row is appended.
 
         :param citation: The citation aggregate to persist.
         :type citation: CitationAggregate
         '''
 
-        # Serialize the citation to a table row object.
+        # Serialize the citation to a table object and a plain field dict.
         table_object = CitationTableObject.from_model(citation)
+        data = table_object.model_dump(by_alias=True)
 
-        # Get or create the table, append the row, then flush.
+        # Get or create the table, then update-or-append by id.
         with self.client() as h5:
             table = h5.get_or_create_table(
                 CITATIONS_TABLE_PATH,
                 CitationTableObject.get_description(),
             )
+
+            # Compare against the encoded id so StringCol bytes match.
+            target_id = CitationTableObject.encode_value(
+                citation.id,
+                CitationTableObject._H5_TYPES['id'],
+            )
+
+            # Prefer indexed column writes; Row.update() during iterrows is
+            # not reliably persisted by PyTables for this path.
+            for index in range(table.nrows):
+                if table.cols.id[index] != target_id:
+                    continue
+                for name, col in CitationTableObject._H5_TYPES.items():
+                    getattr(table.cols, name)[index] = (
+                        CitationTableObject.encode_value(data.get(name), col)
+                    )
+                table.flush()
+                return
+
+            # No existing row — append a new one.
             table_object.to_row(table)
             table.flush()

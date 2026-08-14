@@ -3,7 +3,7 @@
 # *** imports
 
 # ** core
-from datetime import datetime, timezone
+from time import time
 from typing import Dict, List, Optional
 from uuid import uuid4
 import re
@@ -116,9 +116,9 @@ class Source(DomainObject):
     )
 
     # * attribute: created_at
-    created_at: str = Field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat(),
-        description='The ISO 8601 creation timestamp.',
+    created_at: int = Field(
+        default_factory=lambda: int(time()),
+        description='The unix creation timestamp (UTC seconds since epoch).',
     )
 
     # * method: _derive_locator_convention (validator)

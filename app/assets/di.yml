@@ -1,7 +1,4 @@
 services:
-  ping_event:
-    module_path: app.events.system
-    class_name: Ping
   source_service:
     module_path: app.repos.source
     class_name: SourceH5Repository
@@ -21,6 +18,9 @@ services:
   list_sources_event:
     module_path: app.events.source
     class_name: ListSources
+  update_source_event:
+    module_path: app.events.source
+    class_name: UpdateSource
   add_citation_event:
     module_path: app.events.citation
     class_name: AddCitation
@@ -30,3 +30,6 @@ services:
   list_citations_for_source_event:
     module_path: app.events.citation
     class_name: ListCitationsForSource
+  update_citation_event:
+    module_path: app.events.citation
+    class_name: UpdateCitation
