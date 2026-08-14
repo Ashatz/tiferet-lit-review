@@ -1,7 +1,35 @@
 features:
-  system:
-    ping:
-      name: Ping
-      commands:
-        - name: Ping
-          service_id: ping_event
+  source:
+    add:
+      name: Add Source
+      steps:
+        - name: Add Source
+          service_id: add_source_event
+          params:
+            source_medium: $r.medium
+    list:
+      name: List Sources
+      steps:
+        - name: List Sources
+          service_id: list_sources_event
+    update:
+      name: Update Source
+      steps:
+        - name: Update Source
+          service_id: update_source_event
+  citation:
+    add:
+      name: Add Citation
+      steps:
+        - name: Add Citation
+          service_id: add_citation_event
+    list:
+      name: List Citations
+      steps:
+        - name: List Citations
+          service_id: list_citations_for_source_event
+    update:
+      name: Update Citation
+      steps:
+        - name: Update Citation
+          service_id: update_citation_event

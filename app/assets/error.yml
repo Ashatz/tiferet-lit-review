@@ -1,1 +1,16 @@
-errors: {}
+errors:
+  SOURCE_NOT_FOUND:
+    name: Source Not Found
+    message:
+      - lang: en_US
+        text: "Source not found: {id}."
+  CITATION_NOT_FOUND:
+    name: Citation Not Found
+    message:
+      - lang: en_US
+        text: "Citation not found: {id}."
+  INVALID_LOCATOR:
+    name: Invalid Locator
+    message:
+      - lang: en_US
+        text: "Invalid locator '{locator}' for convention '{locator_convention}'."

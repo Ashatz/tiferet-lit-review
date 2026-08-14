@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "tiferet>=2.0.0b3",
-    "tiferet-h5>=0.1.0",
+    "tiferet-h5>=1.0.0a1",
     "tiferet-kb>=1.0.0b2",
 ]
 
