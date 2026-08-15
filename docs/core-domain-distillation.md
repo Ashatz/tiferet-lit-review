@@ -1,6 +1,6 @@
 # Core Domain Distillation — Tiferet Literature Review Knowledge Base
 
-**Status:** Draft · **Domain:** `lit-review` · **Code:** *(not yet implemented)* · **Branch:** `docs-vision-statement-and-core-domain-docs`
+**Status:** Draft · **Domain:** `lit-review` · **Code:** `app/` · **Branch:** `rfp-4-citation-style-rendering`
 **Companion:** `docs/domain-vision.md`
 
 ## 1. Purpose of this document
@@ -11,18 +11,12 @@ those behaviors enforce, and the way the pieces relate. It is the reference a
 contributor should read before writing the first domain object, and the
 reference a reviewer should read before judging whether a change belongs.
 
-**This is a forward-looking distillation.** No code exists in this repository
-yet — `docs/`, `LICENSE`, `README.md`, and `.gitignore` are the entire contents
-of `master` at the time of writing. Every behavior described below is a
-candidate, not an implemented fact. Where a claim needs grounding, it is
-grounded in the conventions of the Tiferet framework this application is
-declared to be "built with" (per `README.md`) — specifically the base classes
-documented for `DomainObject` (`tiferet/domain/settings.py`), `DomainEvent`
-(`tiferet/events/settings.py`), `Aggregate`/`TransferObject`
-(`tiferet/mappers/settings.py`), and `Service`
-(`tiferet/interfaces/settings.py`) in the framework's own orientation
-documentation — not in anything invented for this repository. Section 10 turns
-this distillation into the concrete first slice of implementation work.
+**This distillation is still the conceptual reference**, even though capture,
+theme synthesis, and APA rendering now exist on `v1.x-proto`. Where a claim
+needs grounding, it is grounded in the Tiferet conventions this application is
+built with — `DomainObject`, `DomainEvent`, `Aggregate`/`TransferObject`, and
+`Service` — and, where already implemented, in `app/domain/`. Section 10 remains
+the list of slices this vocabulary is meant to keep honest.
 
 It is written to be legible to a technical-adjacent reader who has not yet read
 the framework's own conventions in depth. Where a term is unavoidable, it is
@@ -70,10 +64,22 @@ treats it directly.
 Carries a bibliographic record and, where relevant, a pointer to the underlying
 file.
 
-**Bibliographic record** — the structured metadata about a source (authors,
-year, title, container title, publisher, and the other fields a citation style
-needs) required to reference it correctly. Captured once, per source, and
-reused by every citation and every rendering drawn from that source.
+**Bibliographic record** — the structured metadata about a source (its
+SourceAuthors, year, title, container title, publisher, and the other fields a
+citation style needs) required to reference it correctly. Captured once, per
+source, and reused by every citation and every rendering drawn from that source.
+
+**SourceAuthor** — a value object copied onto a Source: the name as it appears
+on that work, and only the name. It has no identity of its own, no publisher
+id, and no life-cycle separate from the Source it belongs to. It exists so a
+source can be formatted and cited. Parsing a captured name into a family name
+and initials, and joining those names for in-text or reference-list form, is
+behavior of SourceAuthor and Source — not of a render event.
+
+**Author** — a person who writes. This domain does not model Authors. Treating
+a SourceAuthor as an Author (giving it an id, merging two names into one
+person, or looking people up) is out of scope and would be a different bounded
+context.
 
 **Locator** — the precise position of a passage within a source: a page range
 for a PDF or book today, and whatever position concept a future medium
@@ -124,8 +130,10 @@ of a book are infrastructure the domain depends on, not part of it.
 
 What is captured, per source medium:
 
-- **PDF or book (today):** authors, year, title, and publisher-family fields,
-  plus a page-range locator for each citation drawn from it.
+- **PDF or book (today):** SourceAuthors (names as printed), year, title, and
+  publisher-family fields, plus a page-range locator for each citation drawn
+  from it. The CLI may accept those names as strings; the domain stores them as
+  SourceAuthor value objects.
 - **Any future medium** (journal article, web page, dataset, and so on) is
   expected to supply the same two things — a bibliographic record and a
   locator convention appropriate to that medium — without changing anything
@@ -203,8 +211,12 @@ producing a formatted reference and an in-text citation.
 rendering mechanism — take a bibliographic record and a locator, produce two
 strings — is the same for every style. What differs, per style, is the
 rulebook: field order, punctuation, abbreviation conventions, and how the
-in-text form is shaped. This is the same "one mechanism, many rulebooks"
-pattern the Tiferet Dialect Compiler uses for component types
+in-text form is shaped. Name parsing and locator display live on SourceAuthor,
+Source, and Citation (`app/domain/source.py`, `app/domain/citation.py`); the
+render event only resolves those objects and applies the rulebook templates.
+Generic template substitution may stay beside that event until a second
+subdomain needs the same helper. This is the same "one mechanism, many
+rulebooks" pattern the Tiferet Dialect Compiler uses for component types
 (`docs/compiler/core-domain-distillation.md` in `tiferet-takwin`, Section 5.4)
 — here the rulebook varies by citation style instead of by component type.
 
@@ -262,6 +274,9 @@ hold linkages to many themes; a theme is defined by the full set of citations
 currently linked to it. None of these relationships are optional metadata —
 each is load-bearing for a specific later behavior:
 
+- **Source → SourceAuthor** is what makes a source citable without inventing
+  an Author entity: the names used in rendering are copies on the Source, not
+  references to people.
 - **Citation → Source** is what makes rendering (5.4) possible at all: a
   citation carries only a locator, not a bibliographic record, so rendering
   always resolves through the source it names.
@@ -312,6 +327,13 @@ separated from day one:
 - Treating "PDF" as the only source medium in the citation's locator shape,
   rather than letting locator shape vary by source medium from the start,
   would silently couple citation recording to one medium.
+- Treating a SourceAuthor as an Author — giving the copied name an identity,
+  a publisher id, or a life-cycle of its own — would pull author management
+  into a domain that only needs enough name to cite a work.
+- Putting name parsing or locator display on a render event, rather than on
+  SourceAuthor / Source / Citation, would hide domain behavior in the wrong
+  layer and make a second style look like new Python instead of new rulebook
+  data.
 - Hard-coding one citation style's punctuation or field order into the
   bibliographic record itself, rather than keeping the record style-neutral
   and rendering per style on demand, would make adding a second style a
@@ -326,10 +348,11 @@ be built to avoid.
 
 ## 9. Boundaries
 
-**Inside the domain:** capturing sources and their bibliographic records,
-recording citations with their locators, forming and refining linkages between
-citations and themes, rendering citations in a requested style, and assembling
-themes into an outline with working provenance back to source.
+**Inside the domain:** capturing sources and their bibliographic records
+(including SourceAuthor names copied from the work), recording citations with
+their locators, forming and refining linkages between citations and themes,
+rendering citations in a requested style, and assembling themes into an outline
+with working provenance back to source.
 
 **Outside the domain:**
 - Extracting text from a PDF, transcribing a book, or running OCR — supplied
@@ -342,6 +365,9 @@ themes into an outline with working provenance back to source.
 - Deciding *which* citation style a given paper requires — that is supplied to
   the domain as a selection, the same way a target outline shape is supplied,
   not decided by it.
+- Managing Authors as people — identity, affiliation, name authority, merging
+  two SourceAuthors into one person. A SourceAuthor is a copied name, not a
+  person.
 - General file or document storage — the underlying persistence mechanism
   (however it ends up being built) is an infrastructure concern the domain's
   repositories depend on, not the domain's own behavior.
