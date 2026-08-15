@@ -3,7 +3,7 @@
 # *** imports
 
 # ** core
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 # ** infra
 from tiferet_h5 import NodeObject
@@ -11,7 +11,7 @@ from tiferet_h5 import NodeObject
 # ** app
 from tiferet.mappers.core import Aggregate
 
-from ..domain.source import Source
+from ..domain.source import Source, SourceAuthor
 
 # *** mappers
 
@@ -40,7 +40,7 @@ class SourceAggregate(Source, Aggregate):
         explicit so ``None`` defaults never wipe existing values accidentally.
 
         :param authors: The updated author list, if provided.
-        :type authors: Optional[List[str]]
+        :type authors: Optional[List]
         :param year: The updated publication year, if provided.
         :type year: Optional[int]
         :param title: The updated title, if provided.
@@ -57,7 +57,7 @@ class SourceAggregate(Source, Aggregate):
 
         # Apply each provided required bibliographic field.
         if authors is not None:
-            self.authors = authors
+            self.authors = [SourceAuthor.from_value(author) for author in authors]
         if year is not None:
             self.year = year
         if title is not None:
@@ -80,3 +80,21 @@ class SourceNodeObject(Source, NodeObject):
     HDF5 node mapper for Source: one HDF5 group per source, with the
     bibliographic fields stored as node attributes.
     '''
+
+    # * method: to_attrs
+    def to_attrs(self, role: str = 'to_h5.attrs', **overrides) -> Dict[str, Any]:
+        '''
+        Serialize source attributes, storing authors as display-name strings.
+
+        :param role: Serialization role forwarded to ``to_primitive``.
+        :type role: str
+        :param overrides: Additional key-value pairs merged into the result.
+        :type overrides: dict
+        :return: A flat dict of attribute name to value pairs.
+        :rtype: Dict[str, Any]
+        '''
+
+        # Serialize through the node-object base, then flatten authors.
+        attrs = super().to_attrs(role=role, **overrides)
+        attrs['authors'] = [author.display_name for author in self.authors]
+        return attrs

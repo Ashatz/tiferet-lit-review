@@ -6,12 +6,18 @@
 from time import time
 from typing import Optional
 from uuid import uuid4
+import re
 
 # ** infra
 from pydantic import Field
 
 # ** app
 from tiferet.domain.core import DomainObject
+
+# *** constants
+
+# ** constant: page_range_locator_pattern
+PAGE_RANGE_LOCATOR_PATTERN = re.compile(r'^(\d+)-(\d+)$')
 
 # *** models
 
@@ -58,3 +64,18 @@ class Citation(DomainObject):
         default_factory=lambda: int(time()),
         description='The unix creation timestamp (UTC seconds since epoch).',
     )
+
+    # * method: normalize_locator
+    def normalize_locator(self) -> str:
+        '''
+        Collapse a same-page page-range locator to a single page number.
+
+        :return: The display locator.
+        :rtype: str
+        '''
+
+        # Collapse equal start/end page-range pairs; leave everything else.
+        match = PAGE_RANGE_LOCATOR_PATTERN.match(self.locator)
+        if match and match.group(1) == match.group(2):
+            return match.group(1)
+        return self.locator

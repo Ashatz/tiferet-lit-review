@@ -5,7 +5,7 @@
 # ** core
 from collections import defaultdict
 import re
-from typing import Callable, Dict, List
+from typing import Dict
 
 # ** app
 from tiferet import DomainEvent
@@ -22,151 +22,7 @@ from .source import SOURCE_NOT_FOUND_ID
 # ** constant: citation_style_not_found_id
 CITATION_STYLE_NOT_FOUND_ID = 'CITATION_STYLE_NOT_FOUND'
 
-# ** constant: page_range_locator_pattern
-PAGE_RANGE_LOCATOR_PATTERN = re.compile(r'^(\d+)-(\d+)$')
-
 # *** functions
-
-# ** function: last_name
-def last_name(author: str) -> str:
-    '''
-    Extract the family name from a stored author string.
-
-    :param author: A stored author value (``Last, F.`` or ``First Last``).
-    :type author: str
-    :return: The family name, or an empty string.
-    :rtype: str
-    '''
-
-    # Treat empty or whitespace-only input as no name.
-    stripped = author.strip()
-    if not stripped:
-        return ''
-
-    # Comma form: family name is the substring before the first comma.
-    if ',' in stripped:
-        return stripped.split(',', 1)[0].strip()
-
-    # Unpunctuated form: family name is the last whitespace token.
-    return stripped.split()[-1]
-
-
-# ** function: initials
-def initials(author: str) -> str:
-    '''
-    Extract given-name initials from a stored author string.
-
-    :param author: A stored author value (``Last, F.`` or ``First Last``).
-    :type author: str
-    :return: Space-joined initials (e.g. ``J.``), or an empty string.
-    :rtype: str
-    '''
-
-    # Treat empty or whitespace-only input as no given name.
-    stripped = author.strip()
-    if not stripped:
-        return ''
-
-    # Comma form: given names sit after the first comma.
-    if ',' in stripped:
-        given_side = stripped.split(',', 1)[1].strip()
-        tokens = given_side.split() if given_side else []
-    else:
-        tokens = stripped.split()[:-1]
-
-    # Emit one initial per alphabetic given-name token.
-    rendered: List[str] = []
-    for token in tokens:
-        letters = [char for char in token if char.isalpha()]
-        if letters:
-            rendered.append(f'{letters[0]}.')
-
-    # Join initials with a single space.
-    return ' '.join(rendered)
-
-
-# ** function: format_last_first
-def format_last_first(author: str) -> str:
-    '''
-    Format one author as ``Last, F.``.
-
-    :param author: A stored author value.
-    :type author: str
-    :return: The last-first rendering, or an empty string.
-    :rtype: str
-    '''
-
-    # Split into family name and initials.
-    last = last_name(author)
-    init = initials(author)
-
-    # Combine whichever parts are present.
-    if last and init:
-        return f'{last}, {init}'
-    if last:
-        return last
-    return ''
-
-
-# ** function: join_authors
-def join_authors(formatted: List[str]) -> str:
-    '''
-    Join formatted author names with commas and a final ampersand.
-
-    :param formatted: Already-formatted author strings.
-    :type formatted: List[str]
-    :return: The joined author list, or an empty string.
-    :rtype: str
-    '''
-
-    # Empty and singleton lists need no joiner.
-    if not formatted:
-        return ''
-    if len(formatted) == 1:
-        return formatted[0]
-
-    # Comma-separate all but the last; ampersand before the last.
-    return f'{", ".join(formatted[:-1])} & {formatted[-1]}'
-
-
-# ** function: authors_short
-def authors_short(authors: List[str]) -> str:
-    '''
-    Build the short in-text author form.
-
-    :param authors: Stored author values in source order.
-    :type authors: List[str]
-    :return: The short author string.
-    :rtype: str
-    '''
-
-    # Zero, one, two, and three-or-more authors each have a fixed shape.
-    if not authors:
-        return ''
-    if len(authors) == 1:
-        return last_name(authors[0])
-    if len(authors) == 2:
-        return f'{last_name(authors[0])} & {last_name(authors[1])}'
-    return f'{last_name(authors[0])} et al.'
-
-
-# ** function: normalize_locator
-def normalize_locator(locator: str) -> str:
-    '''
-    Collapse a same-page page-range locator to a single page number.
-
-    :param locator: The stored locator (e.g. ``12-12`` or ``12-14``).
-    :type locator: str
-    :return: The display locator.
-    :rtype: str
-    '''
-
-    # Collapse equal start/end page-range pairs; leave everything else.
-    match = PAGE_RANGE_LOCATOR_PATTERN.match(locator)
-    if match and match.group(1) == match.group(2):
-        return match.group(1)
-    return locator
-
 
 # ** function: format_template
 def format_template(template: str, fields: dict) -> str:
@@ -193,29 +49,6 @@ def format_template(template: str, fields: dict) -> str:
         rendered = rendered.replace('. .', '.')
     rendered = re.sub(r' \.', '.', rendered)
     return rendered.strip()
-
-
-# ** function: identity_author
-def identity_author(author: str) -> str:
-    '''
-    Return an author string unchanged.
-
-    :param author: A stored author value.
-    :type author: str
-    :return: The author string as given.
-    :rtype: str
-    '''
-
-    # Unknown author formats fall back to the stored value.
-    return author
-
-
-# *** constants (formatters)
-
-# ** constant: author_formatters
-AUTHOR_FORMATTERS: Dict[str, Callable[[str], str]] = {
-    'last_first': format_last_first,
-}
 
 # *** events
 
@@ -299,22 +132,19 @@ class RenderCitation(DomainEvent):
             id=style_id,
         )
 
-        # Look up the author formatter; unknown formats pass authors through.
-        formatter = AUTHOR_FORMATTERS.get(rule.author_format, identity_author)
-
-        # Build the template field mapping from the bibliographic record.
+        # Ask the source and citation for derived bibliographic form.
         fields = {
-            'authors': join_authors([formatter(author) for author in source.authors]),
-            'authors_short': authors_short(source.authors),
+            'authors': source.format_authors(rule.author_format),
+            'authors_short': source.authors_short(),
             'year': source.year,
             'title': source.title,
             'container_title': source.container_title or '',
             'publisher': source.publisher or '',
-            'locator': normalize_locator(citation.locator),
+            'locator': citation.normalize_locator(),
             'medium': source.medium,
         }
 
-        # Apply both templates through the same substitution helper.
+        # Apply both templates through the event-local substitution helper.
         formatted_reference = format_template(rule.reference_template, fields)
         in_text_citation = format_template(rule.in_text_template, fields)
 
