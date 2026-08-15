@@ -36,11 +36,15 @@ draft.
 
 ### Themes that get smarter, not just longer
 A tag list only ever grows in volume. A theme in this system grows in
-**meaning**: every time a new citation is linked to it, the theme's own
-description is revisited and refined in light of that addition. After a year of
-reading, a theme is not a bucket of forty highlights — it is a distilled,
-current statement of what the literature says, with forty citations standing
-behind it as evidence.
+**meaning**: as citations are linked to it, the theme maintains a living
+synthesis of what the literature says, without holding the researcher's
+curated prose hostage. Linking evidence is a pure, zero-cost structural fact;
+synthesizing is an evaluative, on-demand or collaborative act. A theme can be
+synthesized automatically across its full evidence set, updated manually with
+the researcher's own prose, or refreshed whenever a new synthesis model lands.
+After a year of reading, a theme is not a bucket of forty highlights — it is a
+distilled, current statement of what the literature says, with forty citations
+standing behind it as evidence.
 
 ### One citation, many arguments
 A single passage in a single source often speaks to more than one idea. This
@@ -73,24 +77,27 @@ source you read for one project keeps paying off in the next.
 Everything in this domain follows one path:
 
 > **Capture** a source → **cite** a passage from it → **link** the citation to
-> one or more themes → **assemble** themes into the sections and paragraphs of
-> a paper's outline, complete with properly formatted citations.
+> one or more themes → **synthesize** the theme's meaning (curated or on demand) →
+> **render** citations in the paper's required style → **assemble** themes into
+> the sections and paragraphs of an outline.
 
-Sources and citations are the easy, mechanical half: a source is added with its
-bibliographic detail, and a citation is pulled from it with enough context to
-place it precisely. The interesting half is the theme. A theme is not declared
-complete and then filled in — it is a living synthesis that **accretes meaning
-with every citation linked to it**. Linking a citation to a theme is not
-filing; it is telling the knowledge base something new about what that theme
-means, and the theme's standing description should reflect the fullest, most
-current understanding each time.
+Sources and citations are the structural half: a source is added with its
+bibliographic detail, a citation is pulled from it with a precise locator, and
+linkages attach evidence to themes. The intellectual half is the theme and its
+synthesis. A theme is not declared complete and then filled in — it is a living
+synthesis that **accretes meaning across its linked citations**. Crucially,
+the structural association of evidence (linking) is decoupled from the
+interpretive act of writing the thesis (synthesizing). Researchers can rapidly
+link evidence in bulk, craft narrative summaries manually, or trigger automated
+re-synthesis across the full linkage set on demand.
 
 The central design commitment, then, is: **the theme, not the source, is the
-unit of intellectual work**, and every relationship between a citation and a
-theme is an event that can refine the theme, not just a label attached to it.
-Bibliographic accuracy is carried alongside that work rather than bolted on
-afterward, because a citation is only useful for drafting if it can be traced
-and correctly referenced at the same time.
+unit of intellectual work**, and the relationship between evidence and
+interpretation reflects how research is actually done: evidence is gathered
+continuously, while synthesis is refined iteratively without accidental
+overwrites. Bibliographic accuracy is carried alongside that work rather than
+bolted on afterward, because a citation is only useful for drafting if it can
+be traced and correctly referenced at the same time.
 
 ## What it deliberately does not do
 

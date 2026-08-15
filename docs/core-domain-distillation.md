@@ -43,8 +43,9 @@ to an idea that other passages, from other works, also belong to.
 The domain has exactly one shape:
 
 > **Capture** a source → **cite** a passage from it → **link** the citation to
-> a theme, refining the theme → **render** the citation in the paper's required
-> style → **assemble** themes into the sections and paragraphs of an outline.
+> a theme → **synthesize** the theme's description (curated or on demand) →
+> **render** the citation in the paper's required style → **assemble** themes
+> into the sections and paragraphs of an outline.
 
 and exactly two axes of variation:
 
@@ -88,10 +89,17 @@ sources. A theme carries a **synthesized description**: a standing, current
 statement of what its linked citations collectively say, distinct from any one
 citation's wording.
 
-**Linkage** — the relationship connecting a citation to a theme. Forming a
-linkage is not filing; it is the event that causes the theme's synthesized
-description to be reconsidered in light of the newly linked citation. A
-citation may hold linkages to more than one theme.
+**Linkage** — the structural relationship connecting a citation to a theme.
+Forming a linkage is the atomic act of attaching evidence to an idea,
+incrementing the theme's linkage count without destructively overwriting any
+existing narrative description. A citation may hold linkages to more than one
+theme.
+
+**Synthesis** — the evaluative act of generating or revising a theme's
+synthesized description against its full linkage set. Can be performed
+manually by the researcher (curated editorial synthesis), invoked on demand
+via an automated synthesis service (`theme synthesize`), or requested at link
+time via an opt-in flag (`--include-synthesis`).
 
 **Citation style** — a named formatting convention (e.g. APA, MLA, Chicago)
 that determines how a bibliographic record and a locator are rendered.
@@ -175,23 +183,39 @@ source-medium axis established when the source was captured.
 
 ### 5.3 Linking a citation to a theme
 
-*Attach a citation to one or more themes, and reconsider each theme's
-synthesized description in light of the addition.*
+*Attach a citation to one or more themes, establishing a durable evidence relationship.*
 
-Candidate event: `LinkCitationToTheme`. This is the domain's central behavior.
-A theme is not written once and then tagged onto citations after the fact — a
-linkage is the event that causes the theme aggregate's synthesized description
-to be revisited, given the full set of citations now linked to it, not merely
-appended to. This mirrors Tiferet's aggregate mutation pattern
-(`set_attribute()`, `tiferet/mappers/settings.py`), applied to a field whose
-correct value depends on the whole linkage history rather than the latest
-write alone.
+Candidate event: `LinkCitationToTheme`. Linking is a pure structural operation:
+it verifies the citation and theme exist, creates a unique `Linkage` row, and
+increments the theme aggregate's `linkage_count`. By default, linking is
+non-destructive and zero-cost with respect to text generation: it does not
+overwrite an existing human-crafted thesis summary. When immediate synthesis
+is desired, an opt-in flag (`--include-synthesis`) can trigger the synthesis
+pipeline as part of the link event.
 
 **Fully agnostic** with respect to both axes: linking is identical no matter
 what medium the citation's source came from or what style the eventual paper
 will use.
 
-### 5.4 Rendering a citation in a style
+### 5.4 Synthesizing and updating a theme
+
+*Generate, revise, or manually curate a theme's synthesized description.*
+
+Candidate events: `SynthesizeTheme` (or `ResynthesizeTheme`) and `UpdateTheme`.
+- `SynthesizeTheme` loads all citations currently linked to the theme, invokes the
+  injected `ThemeSynthesisService.synthesize(theme, citations)`, and updates
+  the theme aggregate's `synthesized_description`.
+- `UpdateTheme` provides direct editorial control, updating the theme's name or
+  manually written narrative synthesis via `set_attribute()`.
+
+Decoupling synthesis from linking ensures batch ingestion is efficient, human
+prose is first-class, and automated synthesis can be re-run on demand whenever
+a new synthesis model or algorithm lands.
+
+**Fully agnostic**: synthesis reads already-captured citations and produces
+text independent of source medium or output citation style.
+
+### 5.5 Rendering a citation in a style
 
 *Format a source's bibliographic record and a citation's locator into a
 specific citation style's in-text and reference-list form.*
@@ -208,14 +232,14 @@ pattern the Tiferet Dialect Compiler uses for component types
 (`docs/compiler/core-domain-distillation.md` in `tiferet-takwin`, Section 5.4)
 — here the rulebook varies by citation style instead of by component type.
 
-### 5.5 Assembling themes into an outline
+### 5.6 Assembling themes into an outline
 
 *Arrange one or more themes, with their linked citations rendered in the
 paper's style, into the sections and paragraphs of an outline.*
 
 Candidate event: `AssembleOutline`. Assembly reads a theme's synthesized
 description and its linked citations, resolves each citation's rendering for
-the paper's chosen style (Section 5.4), and places the result into the target
+the paper's chosen style (Section 5.5), and places the result into the target
 outline's sections and paragraph slots.
 
 **Agnostic** in mechanism: arranging themes into slots does not depend on
@@ -233,24 +257,27 @@ order (`tiferet/contexts/feature.py`), is:
 
 - **capture-source** — register a source and its bibliographic record.
 - **cite-passage** — pull a citation from an already-captured source.
-- **link-citation** — connect a citation to one or more themes, refining each.
+- **link-citation** — connect a citation to one or more themes (pure structural linkage).
+- **synthesize-theme** — synthesize or curate a theme's description across its full linkage set (on demand or manual).
 - **render-citation** — format a citation in a requested style, for reuse
   wherever that citation appears.
 - **assemble-outline** — arrange themes into an outline, rendering their
   citations along the way.
 
-The first three form the "reading loop," run once per passage as research
-progresses. The last two form the "drafting loop," run whenever assembly of a
-specific paper is underway — an outline can be reassembled at any time from
-the themes that exist so far, without re-doing any reading-loop work.
+The first three form the "capture and linking loop," run rapidly per passage
+as research progresses. The fourth forms the "synthesis loop," run when ideas
+are evaluated or refined. The last two form the "drafting loop," run whenever
+assembly of a specific paper is underway.
 
 ```mermaid
 flowchart LR
   SRC([Add source]) --> CITE["Cite a passage<br/>excerpt + locator"]
-  CITE --> LINK["Link to theme(s)<br/>refine synthesis"]
-  LINK --> THEME[("Theme<br/>synthesized description")]
-  THEME --> ASM["Assemble outline<br/>sections + paragraphs"]
-  CITE --> REND["Render citation<br/>in paper's style"]
+  CITE --> LINK["Link to theme(s)<br/>structural association"]
+  LINK --> THEME[(\"Theme<br/>linkage set\")]
+  THEME --> SYNTH[\"Synthesize theme<br/>curated or on-demand\"]
+  SYNTH --> THEME
+  THEME --> ASM[\"Assemble outline<br/>sections + paragraphs\"]
+  CITE --> REND[\"Render citation<br/>in paper's style\"]
   REND --> ASM
   ASM --> OUT([Outline with citations])
 ```
