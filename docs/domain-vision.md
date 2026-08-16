@@ -106,7 +106,8 @@ infrastructure the domain depends on, not part of the domain itself.
 
 It does not manage authors as people. A source keeps a copy of the name printed
 on that work so the work can be cited; it does not identify, merge, or track
-the person behind the name.
+the person behind the name. That copy is created by the source, not as a
+standalone author record.
 
 ---
 

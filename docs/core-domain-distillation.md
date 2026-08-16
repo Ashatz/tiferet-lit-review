@@ -71,10 +71,12 @@ source, and reused by every citation and every rendering drawn from that source.
 
 **SourceAuthor** — a value object copied onto a Source: the name as it appears
 on that work, and only the name. It has no identity of its own, no publisher
-id, and no life-cycle separate from the Source it belongs to. It exists so a
-source can be formatted and cited. Parsing a captured name into a family name
-and initials, and joining those names for in-text or reference-list form, is
-behavior of SourceAuthor and Source — not of a render event.
+id, and no life-cycle separate from the Source it belongs to. It is not created
+on its own; `SourceAggregate.add_author` copies the printed name onto the
+source. Persistence may rehydrate the same value object from stored display
+names. Parsing a captured name into a family name and initials, and joining
+those names for in-text or reference-list form, is behavior of SourceAuthor and
+Source — not of a render event.
 
 **Author** — a person who writes. This domain does not model Authors. Treating
 a SourceAuthor as an Author (giving it an id, merging two names into one
@@ -132,8 +134,8 @@ What is captured, per source medium:
 
 - **PDF or book (today):** SourceAuthors (names as printed), year, title, and
   publisher-family fields, plus a page-range locator for each citation drawn
-  from it. The CLI may accept those names as strings; the domain stores them as
-  SourceAuthor value objects.
+  from it. The CLI may accept those names as strings; `AddSource` copies each
+  one onto the source through `SourceAggregate.add_author`.
 - **Any future medium** (journal article, web page, dataset, and so on) is
   expected to supply the same two things — a bibliographic record and a
   locator convention appropriate to that medium — without changing anything
@@ -163,6 +165,8 @@ Would be modeled as a domain event (candidate name: `AddSource`) constructing a
 `Source` domain object and its mutable `Aggregate` counterpart, following
 Tiferet's split between read-only domain objects and the aggregates that
 mutate them (`tiferet/domain/settings.py`, `tiferet/mappers/settings.py`).
+Author names are copied onto that aggregate one at a time; they are not
+constructed as independent objects at the event boundary.
 
 **Variable** with respect to the source-medium axis: the expected bibliographic
 fields and the locator convention differ by medium. **Agnostic** otherwise: a
@@ -276,7 +280,8 @@ each is load-bearing for a specific later behavior:
 
 - **Source → SourceAuthor** is what makes a source citable without inventing
   an Author entity: the names used in rendering are copies on the Source, not
-  references to people.
+  references to people. The copy is created by `add_author`; the transfer
+  object may rehydrate the same value object from storage.
 - **Citation → Source** is what makes rendering (5.4) possible at all: a
   citation carries only a locator, not a bibliographic record, so rendering
   always resolves through the source it names.
@@ -329,7 +334,9 @@ separated from day one:
   would silently couple citation recording to one medium.
 - Treating a SourceAuthor as an Author — giving the copied name an identity,
   a publisher id, or a life-cycle of its own — would pull author management
-  into a domain that only needs enough name to cite a work.
+  into a domain that only needs enough name to cite a work. Constructing a
+  SourceAuthor outside the source aggregate is the same entanglement: the
+  value object would appear to exist on its own.
 - Putting name parsing or locator display on a render event, rather than on
   SourceAuthor / Source / Citation, would hide domain behavior in the wrong
   layer and make a second style look like new Python instead of new rulebook
