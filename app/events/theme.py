@@ -181,12 +181,12 @@ class ListLinkagesForTheme(DomainEvent):
 # ** event: link_citation_to_theme
 class LinkCitationToTheme(DomainEvent):
     '''
-    Attach a citation to a theme and reconsider the theme's synthesis against
-    the full linkage set.
+    Attach a citation to a theme as a structural fact.
 
-    Always returns the theme. A new linkage re-synthesizes first; an
-    idempotent re-link of an existing (citation_id, theme_id) pair returns
-    the current theme without re-synthesizing.
+    Default linking creates the linkage and increments linkage_count without
+    rewriting synthesized_description. Synthesis runs only when
+    include_synthesis is true. An existing (citation_id, theme_id) pair is
+    idempotent and returns the current theme unchanged.
     '''
 
     # * attribute: theme_service
@@ -232,15 +232,19 @@ class LinkCitationToTheme(DomainEvent):
     def execute(self,
             citation_id: str,
             theme_id: str,
+            include_synthesis: bool = False,
             **kwargs,
         ) -> Theme:
         '''
-        Link a citation to a theme and refresh the theme synthesis when new.
+        Link a citation to a theme; synthesize only when opted in.
 
         :param citation_id: The citation to link.
         :type citation_id: str
         :param theme_id: The theme to link the citation to.
         :type theme_id: str
+        :param include_synthesis: When True, re-synthesize from the full
+            linkage set after creating the linkage. Defaults to False.
+        :type include_synthesis: bool
         :param kwargs: Additional keyword arguments.
         :type kwargs: dict
         :return: The theme after linking (unchanged on an idempotent re-link).
@@ -265,7 +269,7 @@ class LinkCitationToTheme(DomainEvent):
             id=theme_id,
         )
 
-        # Idempotent: existing (citation_id, theme_id) returns without re-synth.
+        # Idempotent: existing (citation_id, theme_id) returns unchanged.
         existing = self.linkage_service.list(
             theme_id=theme_id,
             citation_id=citation_id,
@@ -273,29 +277,31 @@ class LinkCitationToTheme(DomainEvent):
         if existing:
             return theme
 
-        # Save the new linkage.
+        # Save the new linkage as a structural fact.
         new_linkage = LinkageAggregate(
             citation_id=citation_id,
             theme_id=theme_id,
         )
         self.linkage_service.save(new_linkage)
 
-        # Load the full linkage set for this theme (not just the new one).
-        linkages = self.linkage_service.list(theme_id=theme_id)
+        # Increment the denormalized linkage count without touching synthesis.
+        theme.set_attribute('linkage_count', theme.linkage_count + 1)
 
-        # Resolve citations newest-linkage-first for the synthesizer.
-        citations = []
-        for linkage in reversed(linkages):
-            linked_citation = self.citation_service.get(linkage.citation_id)
-            if linked_citation is not None:
-                citations.append(linked_citation)
+        # Opt-in: reload the full citation set and rewrite the description.
+        if include_synthesis:
+            linkages = self.linkage_service.list(theme_id=theme_id)
+            citations = []
+            for linkage in reversed(linkages):
+                linked_citation = self.citation_service.get(linkage.citation_id)
+                if linked_citation is not None:
+                    citations.append(linked_citation)
+            description = self.theme_synthesis_service.synthesize(
+                theme,
+                citations,
+            )
+            theme.set_attribute('synthesized_description', description)
 
-        # Synthesize against the full set and update the theme aggregate.
-        description = self.theme_synthesis_service.synthesize(theme, citations)
-        theme.update_synthesis(
-            synthesized_description=description,
-            linkage_count=len(linkages),
-        )
+        # Persist the updated theme aggregate.
         self.theme_service.save(theme)
 
         # Return the updated theme.
@@ -369,3 +375,154 @@ class ShowTheme(ThemeEvent):
 
         # Map the theme aggregate into a response that includes the citations.
         return ThemeResponse.from_aggregate(theme, citations=citations)
+
+# ** event: update_theme
+class UpdateTheme(ThemeEvent):
+    '''
+    Apply an editorial write to a theme's name and/or synthesized description.
+
+    Lets a researcher curate narrative text without requiring citations or
+    invoking the synthesizer.
+    '''
+
+    # * method: execute
+    @DomainEvent.parameters_required(['id'])
+    def execute(self,
+            id: str,
+            name: Optional[str] = None,
+            synthesized_description: Optional[str] = None,
+            description: Optional[str] = None,
+            **kwargs,
+        ) -> Theme:
+        '''
+        Update a theme's name and/or synthesized description.
+
+        :param id: The theme identifier.
+        :type id: str
+        :param name: The updated theme name, if provided.
+        :type name: Optional[str]
+        :param synthesized_description: The updated synthesis text, if provided.
+        :type synthesized_description: Optional[str]
+        :param description: CLI alias for synthesized_description (``-d``).
+        :type description: Optional[str]
+        :param kwargs: Additional keyword arguments.
+        :type kwargs: dict
+        :return: The updated theme.
+        :rtype: Theme
+        '''
+
+        # Retrieve the theme and verify it exists.
+        theme = self.theme_service.get(id)
+        self.verify(
+            theme is not None,
+            THEME_NOT_FOUND_ID,
+            message=f'Theme not found: {id}.',
+            id=id,
+        )
+
+        # Apply an editorial name write when provided.
+        if name is not None:
+            theme.set_attribute('name', name)
+
+        # Prefer the event-level name; fall back to the CLI description alias.
+        next_description = (
+            synthesized_description
+            if synthesized_description is not None
+            else description
+        )
+
+        # Apply an editorial description write when provided.
+        if next_description is not None:
+            theme.set_attribute('synthesized_description', next_description)
+
+        # Persist the updated theme aggregate.
+        self.theme_service.save(theme)
+
+        # Return the updated theme.
+        return theme
+
+# ** event: resynthesize_theme
+class ResynthesizeTheme(DomainEvent):
+    '''
+    Rebuild a theme's synthesized description from its current linkage set.
+
+    Synthesis is an explicit editorial/computational act, not a side effect of
+    forming a linkage.
+    '''
+
+    # * attribute: theme_service
+    theme_service: ThemeService
+
+    # * attribute: linkage_service
+    linkage_service: LinkageService
+
+    # * attribute: citation_service
+    citation_service: CitationService
+
+    # * attribute: theme_synthesis_service
+    theme_synthesis_service: ThemeSynthesisService
+
+    # * init
+    def __init__(self,
+            theme_service: ThemeService,
+            linkage_service: LinkageService,
+            citation_service: CitationService,
+            theme_synthesis_service: ThemeSynthesisService,
+        ) -> None:
+        '''
+        Initialize the ResynthesizeTheme event.
+
+        :param theme_service: The theme service dependency.
+        :type theme_service: ThemeService
+        :param linkage_service: The linkage service dependency.
+        :type linkage_service: LinkageService
+        :param citation_service: The citation service dependency.
+        :type citation_service: CitationService
+        :param theme_synthesis_service: Injected synthesizer (DI-swappable).
+        :type theme_synthesis_service: ThemeSynthesisService
+        '''
+
+        # Set all injected dependencies.
+        self.theme_service = theme_service
+        self.linkage_service = linkage_service
+        self.citation_service = citation_service
+        self.theme_synthesis_service = theme_synthesis_service
+
+    # * method: execute
+    @DomainEvent.parameters_required(['id'])
+    def execute(self, id: str, **kwargs) -> Theme:
+        '''
+        Re-synthesize a theme from all currently linked citations.
+
+        :param id: The theme identifier.
+        :type id: str
+        :param kwargs: Additional keyword arguments.
+        :type kwargs: dict
+        :return: The theme after synthesis.
+        :rtype: Theme
+        '''
+
+        # Retrieve the theme and verify it exists.
+        theme = self.theme_service.get(id)
+        self.verify(
+            theme is not None,
+            THEME_NOT_FOUND_ID,
+            message=f'Theme not found: {id}.',
+            id=id,
+        )
+
+        # Load linkages and resolve each citation, newest-linkage-first.
+        linkages = self.linkage_service.list(theme_id=id)
+        citations = []
+        for linkage in reversed(linkages):
+            citation = self.citation_service.get(linkage.citation_id)
+            if citation is not None:
+                citations.append(citation)
+
+        # Run the injected synthesizer and write the description.
+        description = self.theme_synthesis_service.synthesize(theme, citations)
+        theme.set_attribute('synthesized_description', description)
+        self.theme_service.save(theme)
+
+        # Return the updated theme.
+        return theme

@@ -57,6 +57,16 @@ features:
       steps:
         - name: Link Citation To Theme
           service_id: link_citation_to_theme_event
+    update:
+      name: Update Theme
+      steps:
+        - name: Update Theme
+          service_id: update_theme_event
+    synthesize:
+      name: Synthesize Theme
+      steps:
+        - name: Synthesize Theme
+          service_id: resynthesize_theme_event
     show:
       name: Show Theme
       steps:
