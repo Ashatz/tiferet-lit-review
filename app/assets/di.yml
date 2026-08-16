@@ -69,6 +69,12 @@ services:
   link_citation_to_theme_event:
     module_path: app.events.theme
     class_name: LinkCitationToTheme
+  update_theme_event:
+    module_path: app.events.theme
+    class_name: UpdateTheme
+  resynthesize_theme_event:
+    module_path: app.events.theme
+    class_name: ResynthesizeTheme
   show_theme_event:
     module_path: app.events.theme
     class_name: ShowTheme
