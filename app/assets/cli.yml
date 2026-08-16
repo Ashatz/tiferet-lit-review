@@ -55,6 +55,31 @@ cli:
           - name_or_flags: ["--publisher"]
             required: false
             description: "The updated source publisher."
+      attach:
+        name: Attach Source Document
+        key: attach
+        group_key: source
+        args:
+          - name_or_flags: ["-i", "--id"]
+            required: true
+            description: "The source identifier to attach a document to."
+          - name_or_flags: ["-f", "--file"]
+            required: true
+            description: "Path to the file being uploaded."
+          - name_or_flags: ["-n", "--name"]
+            required: false
+            description: "Optional API / download name override."
+      download:
+        name: Download Source Document
+        key: download
+        group_key: source
+        args:
+          - name_or_flags: ["-i", "--id"]
+            required: true
+            description: "The source identifier whose document to download."
+          - name_or_flags: ["-o", "--out"]
+            required: false
+            description: "Destination directory; defaults to the current working directory."
     citation:
       add:
         name: Add Citation
