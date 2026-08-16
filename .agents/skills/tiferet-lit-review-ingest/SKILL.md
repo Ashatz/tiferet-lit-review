@@ -6,9 +6,9 @@ description: Capture a source and its citations into the tiferet-lit-review know
 # Ingest into tiferet-lit-review
 
 Teach an agent how to turn supplied reading material into live CLI calls.
-This skill covers only what is implemented on `v1.x-proto` as of `v1.0.0a3`:
-`source`, `citation`, and `theme`. It does not extract text itself, write
-the paper, render APA, or assemble an outline.
+This skill covers only what is implemented on `v1.x-proto` as of `v1.0.0a6`:
+`source`, `citation`, `theme`, and `citation render`. It does not extract
+text itself, write the paper, or assemble an outline.
 
 ## When to use
 
@@ -20,7 +20,7 @@ the paper, render APA, or assemble an outline.
 
 Do not use this skill to implement framework code, draft a paper, invent
 bibliographic fields, or call commands that do not exist yet
-(`citation render`, `outline assemble`).
+(`outline assemble`).
 
 ## Current CLI surface (do not invent flags)
 
@@ -34,8 +34,8 @@ python lit_review_cli.py <group> <command> [flags]
 Implemented groups:
 
 - `source add|list|update`
-- `citation add|list|update`
-- `theme add|list|link|show`
+- `citation add|list|update|render`
+- `theme add|list|link|update|synthesize|show`
 
 ### `source add`
 
@@ -146,23 +146,24 @@ Do not invent a different locator shape to "make it work."
 
 ### 6. Offer thematic linking
 
-Thematic linking is available (`theme add`, `theme link`, `theme show`).
-Follow `tiferet-lit-review-theme`:
+Thematic linking is available (`theme add`, `theme link`, `theme update`,
+`theme synthesize`, `theme show`). Follow `tiferet-lit-review-theme`:
 
 1. `theme list` first.
 2. Suggest existing theme names, or a new theme name, from the excerpts.
-3. Run `theme link` only after the researcher confirms citation → theme.
-4. `theme show -i THEME_ID` after a successful link so they can see the
-   current (naive, concatenated) synthesis.
+3. Run default `theme link` only after the researcher confirms citation → theme.
+   Default link is structural and does not rewrite the description.
+4. Offer `theme update -d` for a curated narrative. Do not pass
+   `--include-synthesis` or run `theme synthesize` unless they ask to replace
+   that text with the naive collage.
+5. `theme show -i THEME_ID` after a successful link so they can see the result.
 
-Never assign themes silently. Synthesis at v1 concatenates
-`Author (Year): excerpt` lines; it is a placeholder, not finished prose.
+Never assign themes silently.
 
 ## Not available yet
 
 Do not call or invent:
 
-- `citation render` / APA formatting (RFP-4)
 - `outline assemble` / `outline show` (RFP-5)
 
 Ingestion populates the knowledge base. Assembling a paper outline is a
@@ -213,5 +214,6 @@ before any `source add`.
 - Every citation has an approved passage (not an unsolicited full-document dump).
 - Existing sources were reused when the same work was already in the store.
 - No theme link ran without confirmation.
-- No `citation render` or `outline` command was attempted.
+- Default `theme link` was used unless the researcher asked to synthesize.
+- No `outline` command was attempted.
 - Returned `id`s were captured from CLI output, not guessed.

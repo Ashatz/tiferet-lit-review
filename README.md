@@ -22,9 +22,8 @@ repo and ask it to capture the reading. Project skills live in
 `.agents/skills/` and cover only the implemented reading loop:
 
 - `tiferet-lit-review-ingest` — `source add` / `citation add` from supplied material
-- `tiferet-lit-review-theme` — `theme add` / `theme link` / `theme show` after you confirm
+- `tiferet-lit-review-theme` — `theme add` / `theme link` / `theme update` / `theme synthesize` / `theme show` after you confirm
 
-Citation-style rendering and outline assembly are not implemented yet; the
-skills will not invent those commands.
+Outline assembly is not implemented yet; the skills will not invent that command.
 
 See [AGENTS.md](AGENTS.md) for the project's layer overview and runtime flow.
