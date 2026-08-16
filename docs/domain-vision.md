@@ -1,6 +1,6 @@
 # Domain Vision Statement — Tiferet Literature Review Knowledge Base
 
-**Status:** Draft · **Domain:** `lit-review` · **Code:** `app/` · **Branch:** `rfp-4-citation-style-rendering`
+**Status:** Draft · **Domain:** `lit-review` · **Code:** `app/` · **Branch:** `v1.x-proto`
 
 ## The bet: organize around your argument, not around your sources
 
@@ -26,10 +26,11 @@ precise with each one it gathers.
 ## What this domain makes real
 
 The lit-review knowledge base is a place to hold a growing body of research
-reading — sources, the citations pulled from them, the themes those citations
-belong to, and the bibliographic record needed to cite them correctly — in a
-form that stays organized as it grows, and that can be handed to a human or an
-AI writing assistant, fully sourced and properly citable, when it is time to
+reading — sources, the files that belong to them when the researcher has them,
+the citations pulled from those works, the themes those citations belong to,
+and the bibliographic record needed to cite them correctly — in a form that
+stays organized as it grows, and that can be handed to a human or an AI
+writing assistant, fully sourced and properly citable, when it is time to
 draft.
 
 ## What we get for it
@@ -51,6 +52,13 @@ A single passage in a single source often speaks to more than one idea. This
 system lets one citation belong to several themes at once, so a striking
 sentence from one book can support your methodology section and your
 literature-gap section without being copied, retyped, or filed twice.
+
+### A source you can reopen, not only remember
+A bibliographic stub is enough to cite a work. It is not enough to check a
+page, compare two PDFs, or hand an agent the text a locator is supposed to
+point at. When a source has an associated file, this knowledge base keeps that
+body with the source and gives it a stable download name — so the file comes
+back as *this* work, not as whatever the upload was called on disk.
 
 ### A running head start on the writing
 Because themes accumulate their own synthesized meaning and their supporting
@@ -78,16 +86,19 @@ source you read for one project keeps paying off in the next.
 
 Everything in this domain follows one path:
 
-> **Capture** a source → **cite** a passage from it → **link** the citation to
-> one or more themes → **synthesize** the theme's meaning (curated or on demand) →
-> **render** citations in the paper's required style → **assemble** themes into
-> the sections and paragraphs of an outline.
+> **Capture** a source → **attach** its document when you have the file →
+> **cite** a passage from it → **link** the citation to one or more themes →
+> **synthesize** the theme's meaning (curated or on demand) → **render**
+> citations in the paper's required style → **assemble** themes into the
+> sections and paragraphs of an outline.
 
 Sources and citations are the structural half: a source is added with its
-bibliographic detail, a citation is pulled from it with a precise locator, and
-linkages attach evidence to themes. The intellectual half is the theme and its
-synthesis. A theme is not declared complete and then filled in — it is a living
-synthesis that **accretes meaning across its linked citations**. Crucially,
+bibliographic detail, an optional named document can be attached so the work
+itself can be reopened or compared, a citation is pulled from it with a
+precise locator, and linkages attach evidence to themes. The intellectual half
+is the theme and its synthesis. A theme is not declared complete and then
+filled in — it is a living synthesis that **accretes meaning across its linked
+citations**. Crucially,
 the structural association of evidence (linking) is decoupled from the
 interpretive act of writing the thesis (synthesizing). Researchers can rapidly
 link evidence in bulk, craft narrative summaries manually, or trigger automated
@@ -109,7 +120,9 @@ flow of a paper are the author's job, done with or without the help of an
 agentic writing tool that reads from this knowledge base.
 
 It does not extract text from PDFs, transcribe books, or run OCR — that is
-infrastructure the domain depends on, not part of the domain itself.
+infrastructure the domain depends on, not part of the domain itself. It *does*
+hold a source's associated file, name it for download, and let later work
+retrieve or compare that body. Holding the work is not the same as parsing it.
 
 It does not manage authors as people. A source keeps a copy of the name printed
 on that work so the work can be cited; it does not identify, merge, or track

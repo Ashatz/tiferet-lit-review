@@ -1,6 +1,6 @@
 # Core Domain Distillation — Tiferet Literature Review Knowledge Base
 
-**Status:** Draft · **Domain:** `lit-review` · **Code:** `app/` · **Branch:** `rfp-4-citation-style-rendering`
+**Status:** Draft · **Domain:** `lit-review` · **Code:** `app/` · **Branch:** `v1.x-proto`
 **Companion:** `docs/domain-vision.md`
 
 ## 1. Purpose of this document
@@ -27,19 +27,23 @@ defined once, in Section 3, and then used consistently.
 The core domain is **capturing sourced evidence and synthesizing it into
 themes that can be assembled, correctly cited, into a paper's outline**.
 
-A piece of reading does not become useful by being stored — a saved PDF is
-inert. It becomes useful once a specific passage is pulled out as evidence and
-connected to an idea that recurs elsewhere in the literature. That connection
-is where meaning is made: not at the moment a source is added, and not at the
-moment a passage is copied out, but at the moment a passage is told to belong
-to an idea that other passages, from other works, also belong to.
+A piece of reading does not become useful by being stored. An unattached
+bibliographic stub is inert. An attached source document is still not a
+citation — it is the work you can reopen, download under a stable name, or
+compare — but meaning is made only once a specific passage is pulled out as
+evidence and connected to an idea that recurs elsewhere in the literature.
+That connection is where the intellectual work happens: not at the moment a
+source is added, not at the moment a file is attached, and not at the moment
+a passage is copied out, but at the moment a passage is told to belong to an
+idea that other passages, from other works, also belong to.
 
 The domain has exactly one shape:
 
-> **Capture** a source → **cite** a passage from it → **link** the citation to
-> a theme → **synthesize** the theme's description (curated or on demand) →
-> **render** the citation in the paper's required style → **assemble** themes
-> into the sections and paragraphs of an outline.
+> **Capture** a source → **attach** its document when the file is on hand →
+> **cite** a passage from it → **link** the citation to a theme →
+> **synthesize** the theme's description (curated or on demand) → **render**
+> the citation in the paper's required style → **assemble** themes into the
+> sections and paragraphs of an outline.
 
 and exactly two axes of variation:
 
@@ -52,18 +56,34 @@ and exactly two axes of variation:
    record and a locator render into an in-text citation and a reference-list
    entry.
 
-Everything else — recording a citation's excerpt and locator, linking a
-citation to a theme, re-synthesizing a theme's description as its linkages
-grow, and assembling themes into an outline — is identical regardless of what
-kind of source is being read or what style the paper eventually needs. That
-asymmetry is the single most important fact about this domain, and Section 8
-treats it directly.
+Everything else — attaching or retrieving a source's named document, recording
+a citation's excerpt and locator, linking a citation to a theme,
+re-synthesizing a theme's description as its linkages grow, and assembling
+themes into an outline — is identical regardless of what kind of source is
+being read or what style the paper eventually needs. How a locator maps into
+an attached file, and which extension a download name carries, still follow
+the source-medium axis. That asymmetry is the single most important fact
+about this domain, and Section 8 treats it directly.
 
 ## 3. Ubiquitous language
 
 **Source** — a work being read: a PDF, a book, or another medium added later.
-Carries a bibliographic record and, where relevant, a pointer to the underlying
-file.
+Carries a bibliographic record and, when the researcher has the file, a named
+source document. The document is optional; the bibliographic record is not.
+
+**Source document** — the optional body of a source: the bytes of the work
+itself, held with that source and no other. It has no identity of its own and
+is not a `tiferet-kb` Document (that noun is reserved for an assembled
+outline). It is created by attaching a file to an existing source, not as a
+standalone record.
+
+**Document name** — the API / download filename stored on the Source. When a
+source document is retrieved, this is the name the file is written under — not
+the original upload name on disk. If the caller does not supply one, the
+Source derives a default from its bibliographic record
+(`{first_author_slug}[_et_al]_{year}_{title_slug}.{ext}`), with `et_al` only
+when there is more than one SourceAuthor. Deriving that name is Source
+behavior, the same family as `authors_short`.
 
 **Bibliographic record** — the structured metadata about a source (its
 SourceAuthors, year, title, container title, publisher, and the other fields a
@@ -133,10 +153,14 @@ assembled into.
 
 ## 4. What the domain reads / operates on
 
-The domain operates on bibliographic and textual data supplied about a source
-— it does not read the source file itself. That is a deliberate boundary
-(Section 9): PDF text extraction, OCR, and the mechanics of getting words out
-of a book are infrastructure the domain depends on, not part of it.
+The domain operates on bibliographic data about a source, on citation text
+the researcher (or an agent) has already extracted, and — when attached — on
+the named source document that belongs to that source. It does not parse the
+file. That is a deliberate boundary (Section 9): PDF text extraction, OCR,
+and the mechanics of getting words out of a book are infrastructure the
+domain depends on, not part of it. Asking for "the body of this source" or
+"the bytes at this locator" is domain; turning those bytes into words is
+infrastructure.
 
 What is captured, per source medium:
 
@@ -162,8 +186,9 @@ citation or a theme *is*; both change how existing citations and themes are
 Each behavior below is a bounded step, described as a candidate domain event in
 the Tiferet sense — a unit with a clear input and output, dependencies
 supplied by injection, and an `execute(**kwargs)` entry point
-(`tiferet/events/settings.py`). None of these events exist yet; naming them
-here is what makes Section 10 concrete.
+(`tiferet/events/settings.py`). Capture, cite, link, synthesize, and render
+already exist on `v1.x-proto`; attaching a source document does not. Naming
+the missing step here is what makes Section 10 concrete.
 
 ### 5.1 Capturing a source
 
@@ -174,13 +199,39 @@ Would be modeled as a domain event (candidate name: `AddSource`) constructing a
 Tiferet's split between read-only domain objects and the aggregates that
 mutate them (`tiferet/domain/settings.py`, `tiferet/mappers/settings.py`).
 Author names are copied onto that aggregate one at a time; they are not
-constructed as independent objects at the event boundary.
+constructed as independent objects at the event boundary. `AddSource` does not
+require a file; a source may be captured as bibliography only.
 
 **Variable** with respect to the source-medium axis: the expected bibliographic
 fields and the locator convention differ by medium. **Agnostic** otherwise: a
 source is a source regardless of what will later be cited from it.
 
-### 5.2 Citing a passage
+### 5.2 Attaching and retrieving a source document
+
+*Hold the work with the source, under a stable download name, and give it
+back on demand.*
+
+Candidate events: `AttachSourceDocument` and `GetSourceDocument`.
+`AttachSourceDocument` takes an existing `source_id`, a path to the file being
+uploaded, and an optional `document_name`. If `document_name` is omitted, the
+Source derives the default from its bibliographic record. The name is stored
+on the Source (`document_name`); the bytes are stored by infrastructure as an
+HDF5 array under the same source group (`tiferet_h5` `create_array` /
+`get_array`). Ordinary `get` / `list` stay metadata-only. `GetSourceDocument`
+returns the bytes and the document name so a download is written under the API
+name, not the original upload name.
+
+Compare-against-document is the same retrieve path used by an agent: resolve
+one or two sources to their bodies (and, where a locator is given, ask
+infrastructure to address into that body). The domain decides *which* source
+and *which* locator; it does not implement PDF libraries.
+
+**Agnostic** in mechanism: every medium attaches, names, and retrieves the
+same way. **Variable** only in the download extension and in how a locator
+maps into the attached file — both follow the source-medium axis already
+established at capture.
+
+### 5.3 Citing a passage
 
 *Pull an excerpt from a source, at a precise locator, with enough context to
 stand alone.*
@@ -193,7 +244,7 @@ is uniform no matter the source medium. **Variable** only in that the locator's
 internal shape (a page range, eventually something else) traces back to the
 source-medium axis established when the source was captured.
 
-### 5.3 Linking a citation to a theme
+### 5.4 Linking a citation to a theme
 
 *Attach a citation to one or more themes, establishing a durable evidence relationship.*
 
@@ -209,7 +260,7 @@ pipeline as part of the link event.
 what medium the citation's source came from or what style the eventual paper
 will use.
 
-### 5.4 Synthesizing and updating a theme
+### 5.5 Synthesizing and updating a theme
 
 *Generate, revise, or manually curate a theme's synthesized description.*
 
@@ -227,7 +278,7 @@ a new synthesis model or algorithm lands.
 **Fully agnostic**: synthesis reads already-captured citations and produces
 text independent of source medium or output citation style.
 
-### 5.5 Rendering a citation in a style
+### 5.6 Rendering a citation in a style
 
 *Format a source's bibliographic record and a citation's locator into a
 specific citation style's in-text and reference-list form.*
@@ -248,14 +299,14 @@ rulebooks" pattern the Tiferet Dialect Compiler uses for component types
 (`docs/compiler/core-domain-distillation.md` in `tiferet-takwin`, Section 5.4)
 — here the rulebook varies by citation style instead of by component type.
 
-### 5.6 Assembling themes into an outline
+### 5.7 Assembling themes into an outline
 
 *Arrange one or more themes, with their linked citations rendered in the
 paper's style, into the sections and paragraphs of an outline.*
 
 Candidate event: `AssembleOutline`. Assembly reads a theme's synthesized
 description and its linked citations, resolves each citation's rendering for
-the paper's chosen style (Section 5.5), and places the result into the target
+the paper's chosen style (Section 5.6), and places the result into the target
 outline's sections and paragraph slots.
 
 **Agnostic** in mechanism: arranging themes into slots does not depend on
@@ -266,12 +317,12 @@ domain rather than one link in the chain.
 
 ## 6. How the behaviors compose
 
-No pipeline configuration exists yet (there is no `feature.yml` in this
-repository). The intended composition, following Tiferet's convention of
-declaring feature workflows as ordered steps rather than hard-coding call
-order (`tiferet/contexts/feature.py`), is:
+Feature workflows are declared as ordered steps rather than hard-coded call
+order (`app/assets/feature.yml`). The intended composition is:
 
 - **capture-source** — register a source and its bibliographic record.
+- **attach-source-document** — optionally hold the work with the source under
+  a document name (may happen at capture or later).
 - **cite-passage** — pull a citation from an already-captured source.
 - **link-citation** — connect a citation to one or more themes (pure structural linkage).
 - **synthesize-theme** — synthesize or curate a theme's description across its full linkage set (on demand or manual).
@@ -280,20 +331,21 @@ order (`tiferet/contexts/feature.py`), is:
 - **assemble-outline** — arrange themes into an outline, rendering their
   citations along the way.
 
-The first three form the "capture and linking loop," run rapidly per passage
-as research progresses. The fourth forms the "synthesis loop," run when ideas
-are evaluated or refined. The last two form the "drafting loop," run whenever
-assembly of a specific paper is underway.
+Capture, attach, and cite form the "reading loop." Linking is the structural
+half of the theme loop; synthesis is the interpretive half, run when ideas are
+evaluated or refined. Render and assemble form the "drafting loop."
 
 ```mermaid
 flowchart LR
-  SRC([Add source]) --> CITE["Cite a passage<br/>excerpt + locator"]
+  SRC([Add source]) --> ATT["Attach document<br/>optional named body"]
+  SRC --> CITE["Cite a passage<br/>excerpt + locator"]
+  ATT --> CITE
   CITE --> LINK["Link to theme(s)<br/>structural association"]
-  LINK --> THEME[(\"Theme<br/>linkage set\")]
-  THEME --> SYNTH[\"Synthesize theme<br/>curated or on-demand\"]
+  LINK --> THEME[("Theme<br/>linkage set")]
+  THEME --> SYNTH["Synthesize theme<br/>curated or on-demand"]
   SYNTH --> THEME
-  THEME --> ASM[\"Assemble outline<br/>sections + paragraphs\"]
-  CITE --> REND[\"Render citation<br/>in paper's style\"]
+  THEME --> ASM["Assemble outline<br/>sections + paragraphs"]
+  CITE --> REND["Render citation<br/>in paper's style"]
   REND --> ASM
   ASM --> OUT([Outline with citations])
 ```
@@ -309,10 +361,13 @@ each is load-bearing for a specific later behavior:
   an Author entity: the names used in rendering are copies on the Source, not
   references to people. The copy is created by `add_author`; the transfer
   object may rehydrate the same value object from storage.
-- **Citation → Source** is what makes rendering (5.4) possible at all: a
+- **Source → Source document** is what makes reopen, download, and agent
+  comparison possible: the body lives with the source, addressed by the
+  document name on that source. A citation never stores the file.
+- **Citation → Source** is what makes rendering (5.6) possible at all: a
   citation carries only a locator, not a bibliographic record, so rendering
   always resolves through the source it names.
-- **Citation → Theme** (via linkage) is what makes synthesis (5.3) possible:
+- **Citation → Theme** (via linkage) is what makes synthesis (5.5) possible:
   a theme's description is a function of *all* its linkages, not the newest
   one, so revising a theme requires reading its full linkage set, not just the
   citation that triggered the revision.
@@ -321,7 +376,7 @@ each is load-bearing for a specific later behavior:
   its citations, to their sources, so that a formatted reference appearing in
   an outline can always be traced and re-verified.
 
-This is why assembly (5.5) cannot be a thin read of a theme's synthesized
+This is why assembly (5.7) cannot be a thin read of a theme's synthesized
 description alone. It needs the theme's current meaning **and** its full
 citation trail at the same time, because a paper's outline is expected to
 carry working citations, not just distilled prose. This is the same shape of
@@ -337,6 +392,8 @@ Stated plainly, so that implementation work can be scoped against it:
 
 **Agnostic — build once, never per axis:**
 - Recording a citation's excerpt and locator reference.
+- Attaching, naming, and retrieving a source document (one optional body per
+  source).
 - Forming a linkage between a citation and a theme.
 - The mechanism of theme synthesis: reconsidering a description given a
   linkage set (the algorithm, not the wording it produces).
@@ -345,8 +402,9 @@ Stated plainly, so that implementation work can be scoped against it:
 - Provenance tracking from outline back to source.
 
 **Variable — one definition per axis:**
-- **Per source medium:** the expected bibliographic fields and the shape of a
-  locator.
+- **Per source medium:** the expected bibliographic fields, the shape of a
+  locator, the download-name extension, and how a locator maps into an
+  attached file.
 - **Per citation style:** the rulebook a bibliographic record and locator are
   rendered through to produce an in-text citation and a reference-list entry.
 
@@ -376,6 +434,13 @@ separated from day one:
   resolving live citation renderings would let an outline drift out of sync
   with its own citation style if that selection changes after themes are
   already assembled.
+- Making "has a file" a second Source type, or putting PDF libraries inside
+  attach/retrieve events, would couple the reading loop to one medium and one
+  parser.
+- Putting raw bytes on the Source domain object, or loading them on ordinary
+  `get` / `list`, would make every bibliographic read pay for the file.
+- Treating a source document as a `tiferet-kb` Document would collide with
+  outline assembly's reuse of that noun.
 
 Naming these now is what the first implementation slice (Section 10) should
 be built to avoid.
@@ -383,8 +448,9 @@ be built to avoid.
 ## 9. Boundaries
 
 **Inside the domain:** capturing sources and their bibliographic records
-(including SourceAuthor names copied from the work), recording citations with
-their locators, forming and refining linkages between citations and themes,
+(including SourceAuthor names copied from the work), attaching and naming a
+source document, retrieving that named body, recording citations with their
+locators, forming and refining linkages between citations and themes,
 rendering citations in a requested style, and assembling themes into an outline
 with working provenance back to source.
 
@@ -402,37 +468,30 @@ with working provenance back to source.
 - Managing Authors as people — identity, affiliation, name authority, merging
   two SourceAuthors into one person. A SourceAuthor is a copied name, not a
   person.
-- General file or document storage — the underlying persistence mechanism
-  (however it ends up being built) is an infrastructure concern the domain's
-  repositories depend on, not the domain's own behavior.
+- General file or document storage — HDF5 array I/O, blob layout, and the
+  shared `lit_review.h5` file are infrastructure the domain's repositories
+  depend on. The domain decides that a source may have a named body; it does
+  not invent a second file store.
 
 ## 10. Where this leads
 
-The distillation above points at a first, well-bounded implementation slice:
+Items 1–4 below already exist on `v1.x-proto`. What remains:
 
-1. **Domain objects for the four core nouns.** `Source`, `Citation`, `Theme`,
-   and `Linkage`, following the `DomainObject`/`Aggregate` split
-   (`tiferet/domain/settings.py`, `tiferet/mappers/settings.py`), with the
-   source-medium axis expressed as field variation on `Source` and locator
-   shape, not as separate domain object types.
-2. **The reading-loop events first.** `AddSource`, `AddCitation`, and
-   `LinkCitationToTheme` — these three make the theme-synthesis bet
-   (Section 2) real, and can be built and tested before any rendering or
-   assembly work starts.
-3. **Citation style as a declared rulebook, not a branch.** Following the
-   compiler's "one mechanism, many rulebooks" precedent
-   (`docs/compiler/core-domain-distillation.md` in `tiferet-takwin`,
-   Section 5.4), a style's rendering rules should be data the render event
-   reads, not `if`/`elif` branches inside it.
-4. **One citation style implemented as proof.** Building a single style (a
-   natural first choice: APA) end-to-end through rendering is the test that
-   the style axis is genuinely separable from citation recording, before a
-   second style is attempted.
-5. **Assembly last.** `AssembleOutline` depends on both the reading loop and
-   rendering already existing, and is the natural point to validate that
-   provenance survives all the way from a captured source to a placed,
-   correctly cited paragraph.
+1. **Domain objects for the four core nouns.** Landed: `Source`, `Citation`,
+   `Theme`, and `Linkage`, with the source-medium axis as field variation on
+   `Source`, not separate types.
+2. **The reading-loop events.** Landed: `AddSource`, `AddCitation`, and
+   `LinkCitationToTheme` (structural by default after RFP-3.1).
+3. **Citation style as a declared rulebook.** Landed: APA as data the render
+   event reads, not a branch inside it.
+4. **One citation style as proof.** Landed: APA through `RenderCitation`.
+5. **Source document attachment and retrieve.** Still open: `document_name` on
+   `Source`, attach/retrieve events, bytes as an HDF5 array under the source
+   group, download under the API name. This is the next reading-loop slice.
+6. **Assembly last.** `AssembleOutline` still depends on the reading loop and
+   rendering, and is the natural point to validate that provenance survives
+   from a captured source to a placed, correctly cited paragraph.
 
-Each is a candidate for its own TRD. Together they are the difference between
-a set of ideas about how a literature review knowledge base should work and
-the knowledge base the vision statement describes.
+Each remaining item is a candidate for its own RFP. Together they are the
+difference between a set of ideas about how a literature review knowledge
+base should work and the knowledge base the vision statement describes.

@@ -223,6 +223,7 @@ __marimo__/
 
 # Tiferet collaboration workflow (local staging, never committed)
 .trd/
+.rfp/
 .milestones/
 .handoff/
 .lit_review/
