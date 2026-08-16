@@ -18,8 +18,8 @@ from tiferet.domain.core import DomainObject
 class Linkage(DomainObject):
     '''
     The relationship connecting a citation to a theme. Forming a linkage is
-    the event that causes the theme's synthesized description to be
-    reconsidered against its full linkage set.
+    a structural fact; synthesis is an explicit later act against the full
+    linkage set.
     '''
 
     # * attribute: id
