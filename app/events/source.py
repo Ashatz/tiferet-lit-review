@@ -16,6 +16,9 @@ from ..mappers.source import SourceAggregate
 # ** constant: source_not_found_id
 SOURCE_NOT_FOUND_ID = 'SOURCE_NOT_FOUND'
 
+# ** constant: source_author_required_id
+SOURCE_AUTHOR_REQUIRED_ID = 'SOURCE_AUTHOR_REQUIRED'
+
 # *** events
 
 # ** event: source_event
@@ -77,16 +80,26 @@ class AddSource(SourceEvent):
         :rtype: SourceAggregate
         '''
 
-        # Create and save the source aggregate; the medium/locator_convention
-        # validator on Source itself enforces the declared medium set.
+        # A source must carry at least one copied author name.
+        self.verify(
+            len(authors) > 0,
+            SOURCE_AUTHOR_REQUIRED_ID,
+            message='A source requires at least one author.',
+        )
+
+        # Create the source aggregate; the medium/locator_convention validator
+        # on Source itself enforces the declared medium set.
         new_source = SourceAggregate(
             medium=source_medium,
-            authors=authors,
             year=year,
             title=title,
             container_title=container_title,
             publisher=publisher,
         )
+
+        # Copy each printed name onto the source through the aggregate lifecycle.
+        for display_name in authors:
+            new_source.add_author(display_name)
         self.source_service.save(new_source)
 
         # Return the newly created source.
@@ -192,6 +205,14 @@ class UpdateSource(SourceEvent):
             message=f'Source not found: {id}.',
             id=id,
         )
+
+        # An author-list update must still leave at least one copied name.
+        if authors is not None:
+            self.verify(
+                len(authors) > 0,
+                SOURCE_AUTHOR_REQUIRED_ID,
+                message='A source requires at least one author.',
+            )
 
         # Apply the requested bibliographic mutations.
         source.update_record(

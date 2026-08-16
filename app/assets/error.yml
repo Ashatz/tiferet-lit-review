@@ -4,6 +4,11 @@ errors:
     message:
       - lang: en_US
         text: "Source not found: {id}."
+  SOURCE_AUTHOR_REQUIRED:
+    name: Source Author Required
+    message:
+      - lang: en_US
+        text: "A source requires at least one author."
   CITATION_NOT_FOUND:
     name: Citation Not Found
     message:

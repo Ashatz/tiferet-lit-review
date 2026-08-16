@@ -4,7 +4,7 @@
 
 # ** core
 from time import time
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 from uuid import uuid4
 import re
 
@@ -74,29 +74,6 @@ class SourceAuthor(DomainObject):
         ...,
         description='The author name as captured on the source (e.g. "Smith, J.").',
     )
-
-    # * method: from_value (static)
-    @staticmethod
-    def from_value(value: Any) -> 'SourceAuthor':
-        '''
-        Coerce a stored or supplied author value into a SourceAuthor.
-
-        :param value: A SourceAuthor, a display-name string, or a mapping.
-        :type value: Any
-        :return: The source author value object.
-        :rtype: SourceAuthor
-        '''
-
-        # Pass through an already-constructed value object.
-        if isinstance(value, SourceAuthor):
-            return value
-
-        # Treat a mapping with display_name as a reconstructed value object.
-        if isinstance(value, dict) and value.get('display_name') is not None:
-            return SourceAuthor(display_name=str(value['display_name']))
-
-        # Treat any other value as a captured display name.
-        return SourceAuthor(display_name=str(value))
 
     # * method: last_name
     def last_name(self) -> str:
@@ -211,8 +188,7 @@ class Source(DomainObject):
 
     # * attribute: authors
     authors: List[SourceAuthor] = Field(
-        ...,
-        min_length=1,
+        default_factory=list,
         description='The source authors copied onto this record; at least one is required.',
     )
 
@@ -251,28 +227,6 @@ class Source(DomainObject):
         default_factory=lambda: int(time()),
         description='The unix creation timestamp (UTC seconds since epoch).',
     )
-
-    # * method: _coerce_authors (validator)
-    @model_validator(mode='before')
-    @classmethod
-    def _coerce_authors(cls, values: dict) -> dict:
-        '''
-        Coerce supplied author values into SourceAuthor value objects.
-
-        :param values: The raw field values before construction.
-        :type values: dict
-        :return: The updated field values dict.
-        :rtype: dict
-        '''
-
-        # Leave missing authors to field validation.
-        authors = values.get('authors')
-        if authors is None:
-            return values
-
-        # Accept strings, mappings, or SourceAuthor instances at the boundary.
-        values['authors'] = [SourceAuthor.from_value(author) for author in authors]
-        return values
 
     # * method: _derive_locator_convention (validator)
     @model_validator(mode='before')
