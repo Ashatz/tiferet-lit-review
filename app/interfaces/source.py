@@ -68,3 +68,42 @@ class SourceService(Service):
         :type source: SourceAggregate
         '''
         raise NotImplementedError()
+
+    # * method: has_document
+    @abstractmethod
+    def has_document(self, source_id: str) -> bool:
+        '''
+        Check whether a source document array exists for the given source.
+
+        :param source_id: The source identifier.
+        :type source_id: str
+        :return: True if the document array exists, otherwise False.
+        :rtype: bool
+        '''
+        raise NotImplementedError()
+
+    # * method: get_document
+    @abstractmethod
+    def get_document(self, source_id: str) -> Optional[bytes]:
+        '''
+        Retrieve the attached source document bytes.
+
+        :param source_id: The source identifier.
+        :type source_id: str
+        :return: The document bytes, or None if no array is attached.
+        :rtype: Optional[bytes]
+        '''
+        raise NotImplementedError()
+
+    # * method: save_document
+    @abstractmethod
+    def save_document(self, source_id: str, data: bytes) -> None:
+        '''
+        Write or replace the source document array for a source.
+
+        :param source_id: The source identifier whose group already exists.
+        :type source_id: str
+        :param data: The raw document bytes.
+        :type data: bytes
+        '''
+        raise NotImplementedError()

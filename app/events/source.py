@@ -3,13 +3,15 @@
 # *** imports
 
 # ** core
+from pathlib import Path
 from typing import List, Optional
 
 # ** app
 from tiferet import DomainEvent
 
+from ..interfaces.file import DocumentFileService
 from ..interfaces.source import SourceService
-from ..mappers.source import SourceAggregate
+from ..mappers.source import SourceAggregate, SourceDocumentResponse
 
 # *** constants
 
@@ -18,6 +20,9 @@ SOURCE_NOT_FOUND_ID = 'SOURCE_NOT_FOUND'
 
 # ** constant: source_author_required_id
 SOURCE_AUTHOR_REQUIRED_ID = 'SOURCE_AUTHOR_REQUIRED'
+
+# ** constant: source_document_not_found_id
+SOURCE_DOCUMENT_NOT_FOUND_ID = 'SOURCE_DOCUMENT_NOT_FOUND'
 
 # *** events
 
@@ -226,3 +231,200 @@ class UpdateSource(SourceEvent):
 
         # Return the updated source.
         return source
+
+# ** event: attach_source_document
+class AttachSourceDocument(SourceEvent):
+    '''
+    Attach a named source document to an existing Source.
+    '''
+
+    # * attribute: document_file_service
+    document_file_service: DocumentFileService
+
+    # * init
+    def __init__(self,
+            source_service: SourceService,
+            document_file_service: DocumentFileService,
+        ) -> None:
+        '''
+        Initialize the AttachSourceDocument event.
+
+        :param source_service: The source service dependency.
+        :type source_service: SourceService
+        :param document_file_service: Reads raw upload bytes from disk.
+        :type document_file_service: DocumentFileService
+        '''
+
+        # Initialize the shared source service dependency.
+        super().__init__(source_service)
+
+        # Set the document file service dependency.
+        self.document_file_service = document_file_service
+
+    # * method: execute
+    @DomainEvent.parameters_required(['source_id', 'path'])
+    def execute(self,
+            source_id: str,
+            path: str,
+            document_name: Optional[str] = None,
+            **kwargs,
+        ) -> SourceAggregate:
+        '''
+        Attach a document to a source, replacing any previous array.
+
+        :param source_id: The source identifier to attach to.
+        :type source_id: str
+        :param path: Filesystem path of the file being uploaded.
+        :type path: str
+        :param document_name: Optional API / download name override.
+        :type document_name: Optional[str]
+        :param kwargs: Additional keyword arguments.
+        :type kwargs: dict
+        :return: The updated source aggregate.
+        :rtype: SourceAggregate
+        '''
+
+        # Retrieve the source and verify it exists before any write.
+        source = self.source_service.get(source_id)
+        self.verify(
+            source is not None,
+            SOURCE_NOT_FOUND_ID,
+            message=f'Source not found: {source_id}.',
+            id=source_id,
+        )
+
+        # Read the upload as raw bytes; do not parse or OCR it.
+        content = self.document_file_service.read_bytes(path)
+
+        # Use the caller override when present; otherwise derive on the source.
+        attached_name = document_name or source.derive_document_name(path=path)
+        source.attach_document(attached_name)
+
+        # Persist the name first, then replace the single document array.
+        self.source_service.save(source)
+        self.source_service.save_document(source.id, content)
+
+        # Return the updated source.
+        return source
+
+# ** event: get_source_document
+class GetSourceDocument(SourceEvent):
+    '''
+    Retrieve a source document's bytes and API name.
+    '''
+
+    # * method: execute
+    @DomainEvent.parameters_required(['source_id'])
+    def execute(self, source_id: str, **kwargs) -> SourceDocumentResponse:
+        '''
+        Retrieve the attached source document.
+
+        :param source_id: The source identifier.
+        :type source_id: str
+        :param kwargs: Additional keyword arguments.
+        :type kwargs: dict
+        :return: The source document response.
+        :rtype: SourceDocumentResponse
+        '''
+
+        # Retrieve the source and verify it exists.
+        source = self.source_service.get(source_id)
+        self.verify(
+            source is not None,
+            SOURCE_NOT_FOUND_ID,
+            message=f'Source not found: {source_id}.',
+            id=source_id,
+        )
+
+        # Retrieve the array only on this path; ordinary get/list stay metadata-only.
+        content = self.source_service.get_document(source_id)
+        self.verify(
+            bool(source.document_name) and content is not None,
+            SOURCE_DOCUMENT_NOT_FOUND_ID,
+            message=f'Source document not found: {source_id}.',
+            id=source_id,
+        )
+
+        # Return the named body for download or compare-by-retrieve.
+        return SourceDocumentResponse.from_aggregate(
+            source,
+            content=content,
+        )
+
+# ** event: download_source_document
+class DownloadSourceDocument(SourceEvent):
+    '''
+    Write an attached source document to disk under its API name.
+    '''
+
+    # * attribute: document_file_service
+    document_file_service: DocumentFileService
+
+    # * init
+    def __init__(self,
+            source_service: SourceService,
+            document_file_service: DocumentFileService,
+        ) -> None:
+        '''
+        Initialize the DownloadSourceDocument event.
+
+        :param source_service: The source service dependency.
+        :type source_service: SourceService
+        :param document_file_service: Writes retrieved bytes to disk.
+        :type document_file_service: DocumentFileService
+        '''
+
+        # Initialize the shared source service dependency.
+        super().__init__(source_service)
+
+        # Set the document file service dependency.
+        self.document_file_service = document_file_service
+
+    # * method: execute
+    @DomainEvent.parameters_required(['source_id'])
+    def execute(self,
+            source_id: str,
+            out: Optional[str] = None,
+            **kwargs,
+        ) -> SourceDocumentResponse:
+        '''
+        Download a source document under its stored document name.
+
+        :param source_id: The source identifier.
+        :type source_id: str
+        :param out: Optional destination directory; defaults to the cwd.
+        :type out: Optional[str]
+        :param kwargs: Additional keyword arguments.
+        :type kwargs: dict
+        :return: The source document response that was written.
+        :rtype: SourceDocumentResponse
+        '''
+
+        # Retrieve the source and verify it exists.
+        source = self.source_service.get(source_id)
+        self.verify(
+            source is not None,
+            SOURCE_NOT_FOUND_ID,
+            message=f'Source not found: {source_id}.',
+            id=source_id,
+        )
+
+        # Retrieve the attached body; missing name or array is the same error.
+        content = self.source_service.get_document(source_id)
+        self.verify(
+            bool(source.document_name) and content is not None,
+            SOURCE_DOCUMENT_NOT_FOUND_ID,
+            message=f'Source document not found: {source_id}.',
+            id=source_id,
+        )
+
+        # Write the file as document_name, not the original upload basename.
+        destination = Path(out) if out else Path.cwd()
+        target = destination / source.document_name
+        self.document_file_service.write_bytes(str(target), content)
+
+        # Return the named body that was written.
+        return SourceDocumentResponse.from_aggregate(
+            source,
+            content=content,
+        )

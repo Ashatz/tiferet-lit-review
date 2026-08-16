@@ -6,10 +6,11 @@
 from typing import Any, Dict, List, Optional
 
 # ** infra
+from pydantic import Field
 from tiferet_h5 import NodeObject
 
 # ** app
-from tiferet.mappers.core import Aggregate
+from tiferet.mappers.core import Aggregate, TransferObject
 
 from ..domain.source import Source, SourceAuthor
 
@@ -35,6 +36,18 @@ class SourceAggregate(Source, Aggregate):
 
         # Append through validated mutation so the parent owns the collection.
         self.set_attribute('authors', [*self.authors, author])
+
+    # * method: attach_document
+    def attach_document(self, document_name: str) -> None:
+        '''
+        Set the API / download name for the attached source document.
+
+        :param document_name: The filename used on download, including extension.
+        :type document_name: str
+        '''
+
+        # Store the name on the source; bytes live in the repository array.
+        self.set_attribute('document_name', document_name)
 
     # * method: update_record
     def update_record(self,
@@ -171,3 +184,39 @@ class SourceNodeObject(Source, NodeObject):
 
         # Return the rehydrated aggregate.
         return source
+
+
+# ** mapper: source_document_response
+class SourceDocumentResponse(Source, TransferObject):
+    '''
+    Transfer object for a retrieved source document: bibliographic name plus bytes.
+    '''
+
+    # * attribute: content
+    content: bytes = Field(
+        default=b'',
+        description='The attached source document body.',
+    )
+
+    # * method: from_aggregate (static)
+    @staticmethod
+    def from_aggregate(
+            source: SourceAggregate,
+            content: bytes,
+        ) -> 'SourceDocumentResponse':
+        '''
+        Map a SourceAggregate and document bytes into a response.
+
+        :param source: The source whose document was retrieved.
+        :type source: SourceAggregate
+        :param content: The attached document bytes.
+        :type content: bytes
+        :return: The source document response.
+        :rtype: SourceDocumentResponse
+        '''
+
+        # Delegate to TransferObject.from_model with the retrieved body.
+        return SourceDocumentResponse.from_model(
+            source,
+            content=content,
+        )

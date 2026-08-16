@@ -6,6 +6,7 @@
 from typing import List, Optional
 
 # ** infra
+import numpy as np
 from tiferet_h5 import H5Repository
 
 # ** app
@@ -16,6 +17,9 @@ from ..mappers.source import SourceAggregate, SourceNodeObject
 
 # ** constant: sources_group_path
 SOURCES_GROUP_PATH = '/lit_review/sources'
+
+# ** constant: source_document_node_name
+SOURCE_DOCUMENT_NODE_NAME = 'document'
 
 # *** repos
 
@@ -122,3 +126,73 @@ class SourceH5Repository(SourceService, H5Repository):
                 h5.create_group(path)
             for name, value in attrs.items():
                 h5.set_node_attr(path, name, value)
+
+    # * method: _document_path
+    def _document_path(self, source_id: str) -> str:
+        '''
+        Build the HDF5 path for a source's document array.
+
+        :param source_id: The source identifier.
+        :type source_id: str
+        :return: The absolute HDF5 array path.
+        :rtype: str
+        '''
+
+        # Document bytes live under the existing source group.
+        return f'{SOURCES_GROUP_PATH}/{source_id}/{SOURCE_DOCUMENT_NODE_NAME}'
+
+    # * method: has_document
+    def has_document(self, source_id: str) -> bool:
+        '''
+        Check whether a source document array exists for the given source.
+
+        :param source_id: The source identifier.
+        :type source_id: str
+        :return: True if the document array exists, otherwise False.
+        :rtype: bool
+        '''
+
+        # Probe the array node without reading its contents.
+        with self.client() as h5:
+            return h5.node_exists(self._document_path(source_id))
+
+    # * method: get_document
+    def get_document(self, source_id: str) -> Optional[bytes]:
+        '''
+        Retrieve the attached source document bytes.
+
+        :param source_id: The source identifier.
+        :type source_id: str
+        :return: The document bytes, or None if no array is attached.
+        :rtype: Optional[bytes]
+        '''
+
+        # Return None when the source has no document array.
+        path = self._document_path(source_id)
+        with self.client() as h5:
+            if not h5.node_exists(path):
+                return None
+            array = h5.get_array(path)
+            data = array.read()
+
+        # Normalize the stored uint8 sequence back to raw bytes.
+        return np.asarray(data, dtype=np.uint8).tobytes()
+
+    # * method: save_document
+    def save_document(self, source_id: str, data: bytes) -> None:
+        '''
+        Write or replace the source document array for a source.
+
+        :param source_id: The source identifier whose group already exists.
+        :type source_id: str
+        :param data: The raw document bytes.
+        :type data: bytes
+        '''
+
+        # Replace-on-reattach: PyTables create_array cannot overwrite a node.
+        path = self._document_path(source_id)
+        array_data = np.frombuffer(data, dtype=np.uint8)
+        with self.client() as h5:
+            if h5.node_exists(path):
+                h5.h5file.remove_node(path)
+            h5.create_array(path, array_data)
