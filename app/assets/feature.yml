@@ -33,6 +33,14 @@ features:
       steps:
         - name: Update Citation
           service_id: update_citation_event
+    render:
+      name: Render Citation
+      steps:
+        - name: Render Citation
+          service_id: render_citation_event
+          params:
+            citation_id: $r.id
+            style_id: $r.style
   theme:
     add:
       name: Add Theme

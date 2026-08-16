@@ -1,0 +1,5 @@
+citation_styles:
+  apa:
+    author_format: last_first
+    reference_template: "{authors} ({year}). {title}. {container_title} {publisher}."
+    in_text_template: "({authors_short}, {year}, p. {locator})"

@@ -1,6 +1,6 @@
 # Domain Vision Statement — Tiferet Literature Review Knowledge Base
 
-**Status:** Draft · **Domain:** `lit-review` · **Code:** *(not yet implemented)* · **Branch:** `docs-vision-statement-and-core-domain-docs`
+**Status:** Draft · **Domain:** `lit-review` · **Code:** `app/` · **Branch:** `rfp-4-citation-style-rendering`
 
 ## The bet: organize around your argument, not around your sources
 
@@ -60,12 +60,14 @@ outline turns "start from a blank page" into "arrange what I already know."
 
 ### Citations that are never orphaned, and never misformatted
 Every citation always traces back to the exact source and location it came
-from, and every source carries the bibliographic detail (authors, year, title,
-publisher, and the rest) needed to reference it correctly. As themes are
-assembled into paper sections, both the passage and its properly formatted
-citation travel together, so a citation dropped into a draft — by hand or with
-the help of an AI writing tool — is correct in the style the paper requires,
-not just present.
+from, and every source carries the bibliographic detail (the names as they
+appear on that work, year, title, publisher, and the rest) needed to reference
+it correctly. Those names are a copy of what the source printed — enough to
+format a citation — not a roster of people this knowledge base manages. As
+themes are assembled into paper sections, both the passage and its properly
+formatted citation travel together, so a citation dropped into a draft — by
+hand or with the help of an AI writing tool — is correct in the style the
+paper requires, not just present.
 
 ### Reading time that compounds
 The value of a passage read once is not spent once. Because passages are kept
@@ -108,6 +110,11 @@ agentic writing tool that reads from this knowledge base.
 
 It does not extract text from PDFs, transcribe books, or run OCR — that is
 infrastructure the domain depends on, not part of the domain itself.
+
+It does not manage authors as people. A source keeps a copy of the name printed
+on that work so the work can be cited; it does not identify, merge, or track
+the person behind the name. That copy is created by the source, not as a
+standalone author record.
 
 ---
 

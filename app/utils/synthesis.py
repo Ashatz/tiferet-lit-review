@@ -96,9 +96,9 @@ class NaiveThemeSynthesizer(ThemeSynthesisService):
         if not source.authors:
             author = 'Unknown'
         elif len(source.authors) == 1:
-            author = source.authors[0]
+            author = source.authors[0].display_name
         else:
-            author = f'{source.authors[0]} et al.'
+            author = f'{source.authors[0].display_name} et al.'
 
         # Return the short reference.
         return f'{author} ({source.year})'
