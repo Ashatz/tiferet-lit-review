@@ -28,7 +28,8 @@ precise with each one it gathers.
 The lit-review knowledge base is a place to hold a growing body of research
 reading — sources, the files that belong to them when the researcher has them,
 the citations pulled from those works, the themes those citations belong to,
-and the bibliographic record needed to cite them correctly — in a form that
+the abstracts that compose a selection of those themes into an argument-level
+brief, and the bibliographic record needed to cite them correctly — in a form that
 stays organized as it grows, and that can be handed to a human or an AI
 writing assistant, fully sourced and properly citable, when it is time to
 draft.
@@ -60,11 +61,20 @@ point at. When a source has an associated file, this knowledge base keeps that
 body with the source and gives it a stable download name — so the file comes
 back as *this* work, not as whatever the upload was called on disk.
 
+### An argument you can state before you outline
+A theme says what the literature says about one idea. An **abstract** says
+what *this* paper (or this cut of the reading) is claiming, by composing a
+chosen set of themes into one standing brief. Linking a theme into an
+abstract is structural and cheap; writing or synthesizing the brief is
+explicit. The same theme can support more than one abstract; the theme does
+not own those briefs.
+
 ### A running head start on the writing
 Because themes accumulate their own synthesized meaning and their supporting
-citations as you read, the outline of a paper's argument is largely built
-*before* drafting starts. Assembling themes into sections and paragraphs of an
-outline turns "start from a blank page" into "arrange what I already know."
+citations as you read, and because an abstract can already state the argument
+those themes jointly make, the outline of a paper is largely built *before*
+drafting starts. Assembling themes into sections turns "start from a blank
+page" into "arrange what I already know."
 
 ### Citations that are never orphaned, and never misformatted
 Every citation always traces back to the exact source and location it came
@@ -88,36 +98,41 @@ Everything in this domain follows one path:
 
 > **Capture** a source → **attach** its document when you have the file →
 > **cite** a passage from it → **link** the citation to one or more themes →
-> **synthesize** the theme's meaning (curated or on demand) → **render**
-> citations in the paper's required style → **assemble** themes into the
-> sections and paragraphs of an outline.
+> **synthesize** the theme's meaning (curated or on demand) → **compose** an
+> abstract from a selection of themes → **render** citations in the paper's
+> required style → **assemble** themes into the sections and paragraphs of an
+> outline.
 
 Sources and citations are the structural half: a source is added with its
 bibliographic detail, an optional named document can be attached so the work
 itself can be reopened or compared, a citation is pulled from it with a
 precise locator, and linkages attach evidence to themes. The intellectual half
-is the theme and its synthesis. A theme is not declared complete and then
-filled in — it is a living synthesis that **accretes meaning across its linked
-citations**. Crucially,
-the structural association of evidence (linking) is decoupled from the
-interpretive act of writing the thesis (synthesizing). Researchers can rapidly
-link evidence in bulk, craft narrative summaries manually, or trigger automated
-re-synthesis across the full linkage set on demand.
+is the theme, the abstract, and their synthesis. A theme is not declared
+complete and then filled in — it is a living synthesis that **accretes meaning
+across its linked citations**. An abstract is not a theme of themes — it is a
+standing brief of one argument, composed from a chosen set of themes. Linking
+(citation to theme, theme to abstract) is decoupled from writing the thesis.
+Researchers can link in bulk, craft narrative summaries manually, or trigger
+automated re-synthesis on demand.
 
 The central design commitment, then, is: **the theme, not the source, is the
-unit of intellectual work**, and the relationship between evidence and
-interpretation reflects how research is actually done: evidence is gathered
-continuously, while synthesis is refined iteratively without accidental
-overwrites. Bibliographic accuracy is carried alongside that work rather than
-bolted on afterward, because a citation is only useful for drafting if it can
-be traced and correctly referenced at the same time.
+unit of intellectual work**, and an abstract is how a *selection* of those
+themes becomes one argument. Evidence is gathered continuously; theme and
+abstract synthesis are refined iteratively without accidental overwrites.
+Bibliographic accuracy is carried alongside that work rather than bolted on
+afterward, because a citation is only useful for drafting if it can be traced
+and correctly referenced at the same time.
 
 ## What it deliberately does not do
 
-It does not write the paper. It holds distilled, cited, thematically organized
-material *for* drafting — the actual prose, argument phrasing, and narrative
-flow of a paper are the author's job, done with or without the help of an
-agentic writing tool that reads from this knowledge base.
+It does not write the paper. An abstract is still held material — a standing
+brief of the argument — not the draft. The actual prose, argument phrasing,
+and narrative flow remain the author's job, done with or without an agentic
+writing tool that reads from this knowledge base.
+
+It does not tag sources or themes for search. Themes *are* the lookup
+vocabulary; a second tag layer would be a weaker classification next to the
+one the researcher already thinks in.
 
 It does not extract text from PDFs, transcribe books, or run OCR — that is
 infrastructure the domain depends on, not part of the domain itself. It *does*

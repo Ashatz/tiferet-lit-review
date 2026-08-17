@@ -41,9 +41,10 @@ The domain has exactly one shape:
 
 > **Capture** a source → **attach** its document when the file is on hand →
 > **cite** a passage from it → **link** the citation to a theme →
-> **synthesize** the theme's description (curated or on demand) → **render**
-> the citation in the paper's required style → **assemble** themes into the
-> sections and paragraphs of an outline.
+> **synthesize** the theme's description (curated or on demand) → **compose**
+> an abstract from a selection of themes → **render** the citation in the
+> paper's required style → **assemble** themes into the sections and
+> paragraphs of an outline.
 
 and exactly two axes of variation:
 
@@ -58,8 +59,9 @@ and exactly two axes of variation:
 
 Everything else — attaching or retrieving a source's named document, recording
 a citation's excerpt and locator, linking a citation to a theme,
-re-synthesizing a theme's description as its linkages grow, and assembling
-themes into an outline — is identical regardless of what kind of source is
+re-synthesizing a theme's description as its linkages grow, composing an
+abstract from a selection of themes, and assembling themes into an outline —
+is identical regardless of what kind of source is
 being read or what style the paper eventually needs. How a locator maps into
 an attached file, and which extension a download name carries, still follow
 the source-medium axis. That asymmetry is the single most important fact
@@ -123,11 +125,24 @@ incrementing the theme's linkage count without destructively overwriting any
 existing narrative description. A citation may hold linkages to more than one
 theme.
 
-**Synthesis** — the evaluative act of generating or revising a theme's
-synthesized description against its full linkage set. Can be performed
-manually by the researcher (curated editorial synthesis), invoked on demand
-via an automated synthesis service (`theme synthesize`), or requested at link
-time via an opt-in flag (`--include-synthesis`).
+**Synthesis** — the evaluative act of generating or revising a standing
+description against a full related set. For a theme, that set is its linked
+citations; for an abstract, that set is its linked themes. Can be performed
+manually (curated editorial synthesis), invoked on demand, or requested at
+link time via an opt-in flag. Theme synthesis and abstract synthesis are the
+same *kind* of act and **different services** — they do not share one
+implementation or one prompt.
+
+**Abstract** — a standing brief of one argument, composed from a chosen set of
+themes. It carries a name and a body (editorial or synthesized). It is not a
+theme of themes, not a source's published abstract, and not an outline. A
+source's printed abstract, if captured later, is bibliographic data on the
+Source and must not share this noun.
+
+**AbstractTheme** — the unidirectional join from an abstract to a theme.
+Forming it includes a theme in that argument and does not rewrite the
+abstract's body. A theme may appear in many abstracts; the theme does not own
+those abstracts.
 
 **Citation style** — a named formatting convention (e.g. APA, MLA, Chicago)
 that determines how a bibliographic record and a locator are rendered.
@@ -186,9 +201,10 @@ citation or a theme *is*; both change how existing citations and themes are
 Each behavior below is a bounded step, described as a candidate domain event in
 the Tiferet sense — a unit with a clear input and output, dependencies
 supplied by injection, and an `execute(**kwargs)` entry point
-(`tiferet/events/settings.py`). Capture, cite, link, synthesize, and render
-already exist on `v1.x-proto`; attaching a source document does not. Naming
-the missing step here is what makes Section 10 concrete.
+(`tiferet/events/settings.py`). Capture, cite, theme link/synthesize, and
+render already exist on `v1.x-proto`; source-document attach is specified
+(issue #2 / PR #14). Abstract composition does not exist yet. Naming that
+step here is what makes Section 10 concrete.
 
 ### 5.1 Capturing a source
 
@@ -278,7 +294,38 @@ a new synthesis model or algorithm lands.
 **Fully agnostic**: synthesis reads already-captured citations and produces
 text independent of source medium or output citation style.
 
-### 5.6 Rendering a citation in a style
+### 5.6 Composing and synthesizing an abstract
+
+*Name an argument-level brief, include themes in it, and write or generate
+its body.*
+
+Candidate events: `AddAbstract`, `UpdateAbstract`, `LinkThemeToAbstract`,
+`SynthesizeAbstract`, `GetAbstract` / `ListAbstracts`.
+
+- `AddAbstract` creates an abstract with a name and an empty (or supplied)
+  body. Themes are not required at creation.
+- `LinkThemeToAbstract` is structural and unidirectional (abstract → theme):
+  verify both exist, create a unique `AbstractTheme` row, increment a
+  denormalized theme count on the abstract. By default it does not rewrite
+  the body. An opt-in flag may trigger synthesis the same way theme-link
+  does.
+- `UpdateAbstract` writes name and/or body via the aggregate — editorial
+  first-class, no themes required.
+- `SynthesizeAbstract` loads **all** themes currently joined to the abstract
+  and calls an injected `AbstractSynthesisService.synthesize(abstract,
+  themes)`. That service is a sibling of `ThemeSynthesisService`, not the
+  same object and not the same prompt. Swapping an agent, a naive
+  concatenator, or a later LLM is a `di.yml` change.
+
+An abstract is not assembled into an outline by this step. Assembly (5.8)
+still arranges themes; the abstract is the argument statement that can sit
+above that arrangement.
+
+**Fully agnostic** with respect to both axes: composing an abstract does not
+depend on source medium or citation style. It reads theme descriptions, not
+raw files or rendered references.
+
+### 5.7 Rendering a citation in a style
 
 *Format a source's bibliographic record and a citation's locator into a
 specific citation style's in-text and reference-list form.*
@@ -299,14 +346,14 @@ rulebooks" pattern the Tiferet Dialect Compiler uses for component types
 (`docs/compiler/core-domain-distillation.md` in `tiferet-takwin`, Section 5.4)
 — here the rulebook varies by citation style instead of by component type.
 
-### 5.7 Assembling themes into an outline
+### 5.8 Assembling themes into an outline
 
 *Arrange one or more themes, with their linked citations rendered in the
 paper's style, into the sections and paragraphs of an outline.*
 
 Candidate event: `AssembleOutline`. Assembly reads a theme's synthesized
 description and its linked citations, resolves each citation's rendering for
-the paper's chosen style (Section 5.6), and places the result into the target
+the paper's chosen style (Section 5.7), and places the result into the target
 outline's sections and paragraph slots.
 
 **Agnostic** in mechanism: arranging themes into slots does not depend on
@@ -326,14 +373,16 @@ order (`app/assets/feature.yml`). The intended composition is:
 - **cite-passage** — pull a citation from an already-captured source.
 - **link-citation** — connect a citation to one or more themes (pure structural linkage).
 - **synthesize-theme** — synthesize or curate a theme's description across its full linkage set (on demand or manual).
+- **compose-abstract** — name an argument brief and join themes into it
+  (structural); write or synthesize the body on demand.
 - **render-citation** — format a citation in a requested style, for reuse
   wherever that citation appears.
 - **assemble-outline** — arrange themes into an outline, rendering their
   citations along the way.
 
-Capture, attach, and cite form the "reading loop." Linking is the structural
-half of the theme loop; synthesis is the interpretive half, run when ideas are
-evaluated or refined. Render and assemble form the "drafting loop."
+Capture, attach, and cite form the "reading loop." Theme link/synthesize is
+the idea loop. Abstract compose/synthesize is the argument loop. Render and
+assemble form the "drafting loop."
 
 ```mermaid
 flowchart LR
@@ -344,6 +393,9 @@ flowchart LR
   LINK --> THEME[("Theme<br/>linkage set")]
   THEME --> SYNTH["Synthesize theme<br/>curated or on-demand"]
   SYNTH --> THEME
+  THEME --> ABS["Compose abstract<br/>unidirectional theme join"]
+  ABS --> ABSYN["Synthesize abstract<br/>curated or on-demand"]
+  ABSYN --> ABS
   THEME --> ASM["Assemble outline<br/>sections + paragraphs"]
   CITE --> REND["Render citation<br/>in paper's style"]
   REND --> ASM
@@ -364,19 +416,22 @@ each is load-bearing for a specific later behavior:
 - **Source → Source document** is what makes reopen, download, and agent
   comparison possible: the body lives with the source, addressed by the
   document name on that source. A citation never stores the file.
-- **Citation → Source** is what makes rendering (5.6) possible at all: a
+- **Citation → Source** is what makes rendering (5.7) possible at all: a
   citation carries only a locator, not a bibliographic record, so rendering
   always resolves through the source it names.
-- **Citation → Theme** (via linkage) is what makes synthesis (5.5) possible:
-  a theme's description is a function of *all* its linkages, not the newest
-  one, so revising a theme requires reading its full linkage set, not just the
-  citation that triggered the revision.
+- **Citation → Theme** (via linkage) is what makes theme synthesis (5.5)
+  possible: a theme's description is a function of *all* its linkages, not the
+  newest one, so revising a theme requires reading its full linkage set.
+- **Abstract → Theme** (via AbstractTheme) is what makes abstract synthesis
+  (5.6) possible: the brief is a function of the joined themes' current
+  descriptions, not of citations directly and not of a blob of ids on the
+  abstract. The join is unidirectional; a theme may appear in many abstracts.
 - **Theme → Outline** (via assembly) is what makes provenance survive
   drafting: assembly must be able to walk backward from a placed theme, through
   its citations, to their sources, so that a formatted reference appearing in
   an outline can always be traced and re-verified.
 
-This is why assembly (5.7) cannot be a thin read of a theme's synthesized
+This is why assembly (5.8) cannot be a thin read of a theme's synthesized
 description alone. It needs the theme's current meaning **and** its full
 citation trail at the same time, because a paper's outline is expected to
 carry working citations, not just distilled prose. This is the same shape of
@@ -395,8 +450,9 @@ Stated plainly, so that implementation work can be scoped against it:
 - Attaching, naming, and retrieving a source document (one optional body per
   source).
 - Forming a linkage between a citation and a theme.
-- The mechanism of theme synthesis: reconsidering a description given a
-  linkage set (the algorithm, not the wording it produces).
+- Forming a unidirectional AbstractTheme join.
+- The mechanism of theme synthesis and of abstract synthesis (each a
+  description given a related set). The *services* stay separate.
 - Assembling themes and their rendered citations into an outline's sections
   and paragraph slots.
 - Provenance tracking from outline back to source.
@@ -441,6 +497,13 @@ separated from day one:
   `get` / `list`, would make every bibliographic read pay for the file.
 - Treating a source document as a `tiferet-kb` Document would collide with
   outline assembly's reuse of that noun.
+- Treating an Abstract as a Theme of themes, or routing both through one
+  `ThemeSynthesisService` / one prompt, would collapse two jobs into one
+  implementation and make a later abstract LLM a branch instead of a swap.
+- Using "abstract" for a source's printed summary would collide with this
+  argument-level noun.
+- Adding tags beside themes would introduce a second, weaker classification
+  the vision already rejected.
 
 Naming these now is what the first implementation slice (Section 10) should
 be built to avoid.
@@ -451,8 +514,9 @@ be built to avoid.
 (including SourceAuthor names copied from the work), attaching and naming a
 source document, retrieving that named body, recording citations with their
 locators, forming and refining linkages between citations and themes,
-rendering citations in a requested style, and assembling themes into an outline
-with working provenance back to source.
+composing an abstract from a selection of themes, rendering citations in a
+requested style, and assembling themes into an outline with working provenance
+back to source.
 
 **Outside the domain:**
 - Extracting text from a PDF, transcribing a book, or running OCR — supplied
@@ -485,12 +549,15 @@ Items 1–4 below already exist on `v1.x-proto`. What remains:
 3. **Citation style as a declared rulebook.** Landed: APA as data the render
    event reads, not a branch inside it.
 4. **One citation style as proof.** Landed: APA through `RenderCitation`.
-5. **Source document attachment and retrieve.** Still open: `document_name` on
-   `Source`, attach/retrieve events, bytes as an HDF5 array under the source
-   group, download under the API name. This is the next reading-loop slice.
-6. **Assembly last.** `AssembleOutline` still depends on the reading loop and
-   rendering, and is the natural point to validate that provenance survives
-   from a captured source to a placed, correctly cited paragraph.
+5. **Source document attachment and retrieve.** Specified (issue #2); PR #14
+   open. `document_name` on `Source`, attach/retrieve, H5 array under the
+   source group.
+6. **Abstract composition.** Still open: `Abstract` + `AbstractTheme`,
+   decoupled link vs synthesize, injected `AbstractSynthesisService`.
+7. **Assembly last.** `AssembleOutline` still depends on the reading loop and
+   rendering. An abstract is not a substitute for assembly. Provenance still
+   has to survive from a captured source to a placed, correctly cited
+   paragraph.
 
 Each remaining item is a candidate for its own RFP. Together they are the
 difference between a set of ideas about how a literature review knowledge
