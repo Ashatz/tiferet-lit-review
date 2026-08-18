@@ -4,6 +4,7 @@
 
 # ** core
 from time import time
+from typing import List
 from uuid import uuid4
 
 # ** infra
@@ -13,6 +14,26 @@ from pydantic import Field
 from tiferet.domain.core import DomainObject
 
 # *** models
+
+# ** model: abstract_theme
+class AbstractTheme(DomainObject):
+    '''
+    A theme included in an Abstract. This is not a Theme entity: it carries
+    no lifecycle of its own and exists only as a join owned by the abstract.
+    '''
+
+    # * attribute: theme_id
+    theme_id: str = Field(
+        ...,
+        description='The identifier of the included theme.',
+    )
+
+    # * attribute: created_at
+    created_at: int = Field(
+        default_factory=lambda: int(time()),
+        description='The unix creation timestamp (UTC seconds since epoch).',
+    )
+
 
 # ** model: abstract
 class Abstract(DomainObject):
@@ -36,6 +57,12 @@ class Abstract(DomainObject):
     body: str = Field(
         default='',
         description='The current brief text; empty until an editorial write or synthesis.',
+    )
+
+    # * attribute: themes
+    themes: List[AbstractTheme] = Field(
+        default_factory=list,
+        description='Owned theme joins, in insertion order.',
     )
 
     # * attribute: theme_count

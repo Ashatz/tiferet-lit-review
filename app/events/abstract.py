@@ -9,13 +9,11 @@ from typing import List, Optional
 from tiferet import DomainEvent
 
 from ..domain.abstract import Abstract
-from ..domain.abstract_theme import AbstractTheme
+from ..domain.theme import Theme
 from ..interfaces.abstract import AbstractService
-from ..interfaces.abstract_theme import AbstractThemeService
 from ..interfaces.synthesis import AbstractSynthesisService
 from ..interfaces.theme import ThemeService
 from ..mappers.abstract import AbstractAggregate, AbstractResponse
-from ..mappers.abstract_theme import AbstractThemeAggregate
 from .theme import THEME_NOT_FOUND_ID
 
 # *** constants
@@ -73,7 +71,6 @@ class AddAbstract(AbstractEvent):
         new_abstract = AbstractAggregate(
             name=name,
             body=body or '',
-            theme_count=0,
         )
         self.abstract_service.save(new_abstract)
 
@@ -121,75 +118,40 @@ class ListAbstracts(AbstractEvent):
     '''
 
     # * method: execute
-    def execute(self, name: Optional[str] = None, **kwargs) -> List[Abstract]:
+    def execute(self,
+            name: Optional[str] = None,
+            theme_id: Optional[str] = None,
+            **kwargs,
+        ) -> List[Abstract]:
         '''
-        List abstracts, optionally filtered by name.
+        List abstracts, optionally filtered by name or included theme.
 
         :param name: Optional abstract name to match exactly.
         :type name: Optional[str]
+        :param theme_id: Optional theme identifier included in the abstract.
+        :type theme_id: Optional[str]
         :param kwargs: Additional keyword arguments.
         :type kwargs: dict
         :return: The matching abstracts.
         :rtype: List[Abstract]
         '''
 
-        # Return abstracts from the service, applying the optional name filter.
-        return self.abstract_service.list(name=name)
-
-# ** event: list_abstract_themes
-class ListAbstractThemes(DomainEvent):
-    '''
-    List all theme joins belonging to a given abstract, in insertion order.
-    '''
-
-    # * attribute: abstract_theme_service
-    abstract_theme_service: AbstractThemeService
-
-    # * init
-    def __init__(self, abstract_theme_service: AbstractThemeService) -> None:
-        '''
-        Initialize the ListAbstractThemes event.
-
-        :param abstract_theme_service: The abstract-theme service dependency.
-        :type abstract_theme_service: AbstractThemeService
-        '''
-
-        # Set the abstract-theme service dependency.
-        self.abstract_theme_service = abstract_theme_service
-
-    # * method: execute
-    @DomainEvent.parameters_required(['abstract_id'])
-    def execute(self, abstract_id: str, **kwargs) -> List[AbstractTheme]:
-        '''
-        List all theme joins for an abstract.
-
-        :param abstract_id: The abstract identifier to filter joins by.
-        :type abstract_id: str
-        :param kwargs: Additional keyword arguments.
-        :type kwargs: dict
-        :return: The joins belonging to the abstract, in insertion order.
-        :rtype: List[AbstractTheme]
-        '''
-
-        # Return the joins filtered by abstract_id.
-        return self.abstract_theme_service.list(abstract_id=abstract_id)
+        # Return abstracts from the service, applying the optional filters.
+        return self.abstract_service.list(name=name, theme_id=theme_id)
 
 # ** event: link_theme_to_abstract
 class LinkThemeToAbstract(DomainEvent):
     '''
     Include a theme in an abstract as a structural fact.
 
-    Default linking creates the join and increments theme_count without
+    Default linking creates the owned join and increments theme_count without
     rewriting body. Synthesis runs only when include_synthesis is true. An
-    existing (abstract_id, theme_id) pair is idempotent and returns the
-    current abstract unchanged.
+    already-joined theme_id is idempotent and returns the current abstract
+    unchanged.
     '''
 
     # * attribute: abstract_service
     abstract_service: AbstractService
-
-    # * attribute: abstract_theme_service
-    abstract_theme_service: AbstractThemeService
 
     # * attribute: theme_service
     theme_service: ThemeService
@@ -200,7 +162,6 @@ class LinkThemeToAbstract(DomainEvent):
     # * init
     def __init__(self,
             abstract_service: AbstractService,
-            abstract_theme_service: AbstractThemeService,
             theme_service: ThemeService,
             abstract_synthesis_service: AbstractSynthesisService,
         ) -> None:
@@ -209,8 +170,6 @@ class LinkThemeToAbstract(DomainEvent):
 
         :param abstract_service: The abstract service dependency.
         :type abstract_service: AbstractService
-        :param abstract_theme_service: The abstract-theme service dependency.
-        :type abstract_theme_service: AbstractThemeService
         :param theme_service: The theme service dependency.
         :type theme_service: ThemeService
         :param abstract_synthesis_service: Injected synthesizer (DI-swappable).
@@ -219,7 +178,6 @@ class LinkThemeToAbstract(DomainEvent):
 
         # Set all injected dependencies.
         self.abstract_service = abstract_service
-        self.abstract_theme_service = abstract_theme_service
         self.theme_service = theme_service
         self.abstract_synthesis_service = abstract_synthesis_service
 
@@ -256,7 +214,7 @@ class LinkThemeToAbstract(DomainEvent):
             id=id,
         )
 
-        # Verify the theme exists.
+        # Verify the theme exists before forming the join.
         theme = self.theme_service.get(theme_id)
         self.verify(
             theme is not None,
@@ -265,32 +223,17 @@ class LinkThemeToAbstract(DomainEvent):
             id=theme_id,
         )
 
-        # Idempotent: existing (abstract_id, theme_id) returns unchanged.
-        existing = self.abstract_theme_service.list(
-            abstract_id=id,
-            theme_id=theme_id,
-        )
-        if existing:
+        # Idempotent: an already-joined theme returns the abstract unchanged.
+        added = abstract.add_theme(theme_id)
+        if not added:
             return abstract
 
-        # Save the new join as a structural fact.
-        new_join = AbstractThemeAggregate(
-            abstract_id=id,
-            theme_id=theme_id,
-        )
-        self.abstract_theme_service.save(new_join)
-
-        # Increment the denormalized theme count without touching the body.
-        abstract.set_attribute('theme_count', abstract.theme_count + 1)
-
-        # Opt-in: reload the full theme set and rewrite the body.
+        # Opt-in: resolve the full owned theme set and rewrite the body.
         if include_synthesis:
-            themes = self._load_joined_themes(id)
-            body = self.abstract_synthesis_service.synthesize(
-                abstract,
-                themes,
+            themes = self._load_joined_themes(abstract)
+            abstract.set_body(
+                self.abstract_synthesis_service.synthesize(abstract, themes)
             )
-            abstract.set_attribute('body', body)
 
         # Persist the updated abstract aggregate.
         self.abstract_service.save(abstract)
@@ -299,19 +242,19 @@ class LinkThemeToAbstract(DomainEvent):
         return abstract
 
     # * method: _load_joined_themes
-    def _load_joined_themes(self, abstract_id: str) -> List:
+    def _load_joined_themes(self, abstract: AbstractAggregate) -> List[Theme]:
         '''
-        Load every theme currently joined to the abstract, in insertion order.
+        Resolve every Theme currently joined to the abstract.
 
-        :param abstract_id: The abstract whose joins to resolve.
-        :type abstract_id: str
+        :param abstract: The abstract whose owned joins to resolve.
+        :type abstract: AbstractAggregate
         :return: The joined themes in insertion order.
-        :rtype: List
+        :rtype: List[Theme]
         '''
 
-        # Resolve each joined theme, skipping any that can no longer be loaded.
+        # Resolve each owned join, skipping any theme that can no longer be loaded.
         themes = []
-        for join in self.abstract_theme_service.list(abstract_id=abstract_id):
+        for join in abstract.themes:
             joined_theme = self.theme_service.get(join.theme_id)
             if joined_theme is not None:
                 themes.append(joined_theme)
@@ -325,16 +268,12 @@ class ShowAbstract(AbstractEvent):
     Display an abstract's body plus each joined theme.
     '''
 
-    # * attribute: abstract_theme_service
-    abstract_theme_service: AbstractThemeService
-
     # * attribute: theme_service
     theme_service: ThemeService
 
     # * init
     def __init__(self,
             abstract_service: AbstractService,
-            abstract_theme_service: AbstractThemeService,
             theme_service: ThemeService,
         ) -> None:
         '''
@@ -342,8 +281,6 @@ class ShowAbstract(AbstractEvent):
 
         :param abstract_service: The abstract service dependency.
         :type abstract_service: AbstractService
-        :param abstract_theme_service: The abstract-theme service dependency.
-        :type abstract_theme_service: AbstractThemeService
         :param theme_service: The theme service dependency.
         :type theme_service: ThemeService
         '''
@@ -351,8 +288,7 @@ class ShowAbstract(AbstractEvent):
         # Initialize the shared abstract service dependency.
         super().__init__(abstract_service)
 
-        # Set the remaining show dependencies.
-        self.abstract_theme_service = abstract_theme_service
+        # Set the remaining show dependency.
         self.theme_service = theme_service
 
     # * method: execute
@@ -378,9 +314,9 @@ class ShowAbstract(AbstractEvent):
             id=id,
         )
 
-        # Load each joined theme aggregate in join insertion order.
+        # Resolve each owned join from the loaded aggregate.
         themes = []
-        for join in self.abstract_theme_service.list(abstract_id=id):
+        for join in abstract.themes:
             theme = self.theme_service.get(join.theme_id)
             if theme is not None:
                 themes.append(theme)
@@ -431,11 +367,11 @@ class UpdateAbstract(AbstractEvent):
 
         # Apply an editorial name write when provided.
         if name is not None:
-            abstract.set_attribute('name', name)
+            abstract.rename(name)
 
         # Apply an editorial body write when provided.
         if body is not None:
-            abstract.set_attribute('body', body)
+            abstract.set_body(body)
 
         # Persist the updated abstract aggregate.
         self.abstract_service.save(abstract)
@@ -455,9 +391,6 @@ class SynthesizeAbstract(DomainEvent):
     # * attribute: abstract_service
     abstract_service: AbstractService
 
-    # * attribute: abstract_theme_service
-    abstract_theme_service: AbstractThemeService
-
     # * attribute: theme_service
     theme_service: ThemeService
 
@@ -467,7 +400,6 @@ class SynthesizeAbstract(DomainEvent):
     # * init
     def __init__(self,
             abstract_service: AbstractService,
-            abstract_theme_service: AbstractThemeService,
             theme_service: ThemeService,
             abstract_synthesis_service: AbstractSynthesisService,
         ) -> None:
@@ -476,8 +408,6 @@ class SynthesizeAbstract(DomainEvent):
 
         :param abstract_service: The abstract service dependency.
         :type abstract_service: AbstractService
-        :param abstract_theme_service: The abstract-theme service dependency.
-        :type abstract_theme_service: AbstractThemeService
         :param theme_service: The theme service dependency.
         :type theme_service: ThemeService
         :param abstract_synthesis_service: Injected synthesizer (DI-swappable).
@@ -486,7 +416,6 @@ class SynthesizeAbstract(DomainEvent):
 
         # Set all injected dependencies.
         self.abstract_service = abstract_service
-        self.abstract_theme_service = abstract_theme_service
         self.theme_service = theme_service
         self.abstract_synthesis_service = abstract_synthesis_service
 
@@ -513,16 +442,17 @@ class SynthesizeAbstract(DomainEvent):
             id=id,
         )
 
-        # Load joins and resolve each theme in insertion order.
+        # Resolve each owned join from the loaded aggregate.
         themes = []
-        for join in self.abstract_theme_service.list(abstract_id=id):
+        for join in abstract.themes:
             theme = self.theme_service.get(join.theme_id)
             if theme is not None:
                 themes.append(theme)
 
         # Run the injected synthesizer and write the body.
-        body = self.abstract_synthesis_service.synthesize(abstract, themes)
-        abstract.set_attribute('body', body)
+        abstract.set_body(
+            self.abstract_synthesis_service.synthesize(abstract, themes)
+        )
         self.abstract_service.save(abstract)
 
         # Return the updated abstract.

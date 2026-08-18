@@ -47,12 +47,17 @@ class AbstractService(Service):
 
     # * method: list
     @abstractmethod
-    def list(self, name: Optional[str] = None) -> List[AbstractAggregate]:
+    def list(self,
+            name: Optional[str] = None,
+            theme_id: Optional[str] = None,
+        ) -> List[AbstractAggregate]:
         '''
-        List Abstract aggregates, optionally filtered by name.
+        List Abstract aggregates, optionally filtered by name or theme.
 
         :param name: Optional abstract name to match exactly.
         :type name: Optional[str]
+        :param theme_id: Optional theme identifier included in the abstract.
+        :type theme_id: Optional[str]
         :return: The matching abstract aggregates.
         :rtype: List[AbstractAggregate]
         '''

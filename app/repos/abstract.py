@@ -22,9 +22,9 @@ ABSTRACTS_GROUP_PATH = '/lit_review/abstracts'
 # ** repo: abstract_h5_repository
 class AbstractH5Repository(AbstractService, H5Repository):
     '''
-    HDF5 node-based repository for Abstract domain objects. One HDF5 group per
+    HDF5 node-based repository for Abstract aggregates. One HDF5 group per
     abstract, at ABSTRACTS_GROUP_PATH/<abstract_id>, with abstract fields
-    stored as node attributes.
+    and owned theme joins stored as node attributes.
     '''
 
     # * init
@@ -59,7 +59,7 @@ class AbstractH5Repository(AbstractService, H5Repository):
     # * method: get
     def get(self, id: str) -> Optional[AbstractAggregate]:
         '''
-        Retrieve an Abstract by its ID.
+        Retrieve an Abstract by its ID, including owned theme joins.
 
         :param id: The abstract identifier.
         :type id: str
@@ -74,16 +74,21 @@ class AbstractH5Repository(AbstractService, H5Repository):
                 return None
             attrs = h5.get_node_attrs(path)
 
-        # Map the attributes to an abstract aggregate.
+        # Map the attributes to an abstract aggregate, restoring owned joins.
         return AbstractNodeObject.from_attrs(attrs).map(AbstractAggregate)
 
     # * method: list
-    def list(self, name: Optional[str] = None) -> List[AbstractAggregate]:
+    def list(self,
+            name: Optional[str] = None,
+            theme_id: Optional[str] = None,
+        ) -> List[AbstractAggregate]:
         '''
-        List abstracts, optionally filtered by name.
+        List abstracts, optionally filtered by name or included theme.
 
         :param name: Optional abstract name to match exactly.
         :type name: Optional[str]
+        :param theme_id: Optional theme identifier included in the abstract.
+        :type theme_id: Optional[str]
         :return: The matching abstract aggregates.
         :rtype: List[AbstractAggregate]
         '''
@@ -106,13 +111,20 @@ class AbstractH5Repository(AbstractService, H5Repository):
                 abstract for abstract in abstracts if abstract.name == name
             ]
 
+        # Apply the optional included-theme filter.
+        if theme_id is not None:
+            abstracts = [
+                abstract for abstract in abstracts
+                if any(theme.theme_id == theme_id for theme in abstract.themes)
+            ]
+
         # Return the mapped abstract aggregates.
         return abstracts
 
     # * method: save
     def save(self, abstract: AbstractAggregate) -> None:
         '''
-        Persist an Abstract aggregate.
+        Persist an Abstract aggregate, including its owned theme joins.
 
         :param abstract: The abstract aggregate to persist.
         :type abstract: AbstractAggregate

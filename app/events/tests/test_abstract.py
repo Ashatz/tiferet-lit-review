@@ -19,11 +19,9 @@ from app.events.abstract import (
 )
 from app.events.theme import THEME_NOT_FOUND_ID
 from app.interfaces.abstract import AbstractService
-from app.interfaces.abstract_theme import AbstractThemeService
 from app.interfaces.synthesis import AbstractSynthesisService
 from app.interfaces.theme import ThemeService
 from app.mappers.abstract import AbstractAggregate
-from app.mappers.abstract_theme import AbstractThemeAggregate
 from app.mappers.theme import ThemeAggregate
 
 # *** constants
@@ -57,7 +55,6 @@ def abstract() -> AbstractAggregate:
         id=ABSTRACT_ID,
         name='Multi-level IR argument',
         body=CURATED_BODY,
-        theme_count=0,
     )
 
 # ** fixture: theme
@@ -78,25 +75,9 @@ def theme() -> ThemeAggregate:
         linkage_count=1,
     )
 
-# ** fixture: abstract_theme
-@pytest.fixture
-def abstract_theme() -> AbstractThemeAggregate:
-    '''
-    Build the join created by a successful abstract link.
-
-    :return: A join for the sample abstract and theme.
-    :rtype: AbstractThemeAggregate
-    '''
-
-    # Return the structural pair the link event persists.
-    return AbstractThemeAggregate(
-        abstract_id=ABSTRACT_ID,
-        theme_id=THEME_ID,
-    )
-
 # ** fixture: link_dependencies
 @pytest.fixture
-def link_dependencies(abstract, theme, abstract_theme) -> dict:
+def link_dependencies(abstract, theme) -> dict:
     '''
     Build mocked services for LinkThemeToAbstract.
 
@@ -104,35 +85,23 @@ def link_dependencies(abstract, theme, abstract_theme) -> dict:
     :type abstract: AbstractAggregate
     :param theme: The theme fixture.
     :type theme: ThemeAggregate
-    :param abstract_theme: The join fixture.
-    :type abstract_theme: AbstractThemeAggregate
     :return: Constructor dependencies for the link event.
     :rtype: dict
     '''
 
     # Mock each injected service with its interface contract.
     abstract_service = mock.Mock(spec=AbstractService)
-    abstract_theme_service = mock.Mock(spec=AbstractThemeService)
     theme_service = mock.Mock(spec=ThemeService)
     abstract_synthesis_service = mock.Mock(spec=AbstractSynthesisService)
 
-    # Resolve the sample abstract and theme; default pair list is empty.
+    # Resolve the sample abstract and theme.
     abstract_service.get.return_value = abstract
     theme_service.get.return_value = theme
     abstract_synthesis_service.synthesize.return_value = SYNTHESIZED_BODY
 
-    # After save, a full-set list returns the new join for opt-in synthesis.
-    def list_joins(abstract_id=None, theme_id=None):
-        if theme_id is not None:
-            return []
-        return [abstract_theme]
-
-    abstract_theme_service.list.side_effect = list_joins
-
     # Return the assembled dependency map.
     return {
         'abstract_service': abstract_service,
-        'abstract_theme_service': abstract_theme_service,
         'theme_service': theme_service,
         'abstract_synthesis_service': abstract_synthesis_service,
     }
@@ -160,6 +129,7 @@ def test_add_abstract_creates_empty_body():
     assert result.name == 'Multi-level IR argument'
     assert result.body == ''
     assert result.theme_count == 0
+    assert result.themes == []
 
 # ** test: test_update_abstract_sets_body_without_themes
 def test_update_abstract_sets_body_without_themes(abstract):
@@ -209,33 +179,26 @@ def test_link_theme_to_abstract_default_preserves_body(
         theme_id=THEME_ID,
     )
 
-    # The join is saved and the count increments; the curated text stays.
-    link_dependencies['abstract_theme_service'].save.assert_called_once()
+    # The owned join is saved and the count increments; the curated text stays.
     link_dependencies['abstract_service'].save.assert_called_once_with(abstract)
     link_dependencies['abstract_synthesis_service'].synthesize.assert_not_called()
     assert result.theme_count == 1
+    assert result.themes[0].theme_id == THEME_ID
     assert result.body == CURATED_BODY
 
 # ** test: test_link_theme_to_abstract_is_idempotent
-def test_link_theme_to_abstract_is_idempotent(
-        abstract,
-        abstract_theme,
-        link_dependencies,
-    ):
+def test_link_theme_to_abstract_is_idempotent(abstract, link_dependencies):
     '''
     Re-linking an existing pair returns the abstract without mutation.
 
     :param abstract: The abstract fixture.
     :type abstract: AbstractAggregate
-    :param abstract_theme: The existing join fixture.
-    :type abstract_theme: AbstractThemeAggregate
     :param link_dependencies: Mocked link-event dependencies.
     :type link_dependencies: dict
     '''
 
-    # An existing pair is already stored for this abstract and theme.
-    link_dependencies['abstract_theme_service'].list.side_effect = None
-    link_dependencies['abstract_theme_service'].list.return_value = [abstract_theme]
+    # The abstract already owns this theme join.
+    abstract.add_theme(THEME_ID)
 
     # Re-link the same pair.
     result = DomainEvent.handle(
@@ -245,13 +208,12 @@ def test_link_theme_to_abstract_is_idempotent(
         theme_id=THEME_ID,
     )
 
-    # No second row, no save, no synthesis, and the curated text remains.
-    link_dependencies['abstract_theme_service'].save.assert_not_called()
+    # No save, no synthesis, and the curated text remains.
     link_dependencies['abstract_service'].save.assert_not_called()
     link_dependencies['abstract_synthesis_service'].synthesize.assert_not_called()
     assert result is abstract
     assert result.body == CURATED_BODY
-    assert result.theme_count == 0
+    assert result.theme_count == 1
 
 # ** test: test_link_theme_to_abstract_include_synthesis_rewrites_body
 def test_link_theme_to_abstract_include_synthesis_rewrites_body(
@@ -288,7 +250,7 @@ def test_link_theme_to_abstract_include_synthesis_rewrites_body(
     assert result.body == SYNTHESIZED_BODY
 
 # ** test: test_synthesize_abstract_reloads_joins
-def test_synthesize_abstract_reloads_joins(abstract, theme, abstract_theme):
+def test_synthesize_abstract_reloads_joins(abstract, theme):
     '''
     Explicit synthesize reloads all joined themes and updates the body.
 
@@ -296,19 +258,18 @@ def test_synthesize_abstract_reloads_joins(abstract, theme, abstract_theme):
     :type abstract: AbstractAggregate
     :param theme: The theme fixture.
     :type theme: ThemeAggregate
-    :param abstract_theme: The join fixture.
-    :type abstract_theme: AbstractThemeAggregate
     '''
 
-    # Mock the four injected services used by SynthesizeAbstract.
+    # The abstract already owns one theme join.
+    abstract.add_theme(THEME_ID)
+
+    # Mock the three injected services used by SynthesizeAbstract.
     abstract_service = mock.Mock(spec=AbstractService)
-    abstract_theme_service = mock.Mock(spec=AbstractThemeService)
     theme_service = mock.Mock(spec=ThemeService)
     abstract_synthesis_service = mock.Mock(spec=AbstractSynthesisService)
 
-    # The abstract already has a curated body and one stored join.
+    # The abstract already has a curated body and one owned join.
     abstract_service.get.return_value = abstract
-    abstract_theme_service.list.return_value = [abstract_theme]
     theme_service.get.return_value = theme
     abstract_synthesis_service.synthesize.return_value = SYNTHESIZED_BODY
 
@@ -317,15 +278,14 @@ def test_synthesize_abstract_reloads_joins(abstract, theme, abstract_theme):
         SynthesizeAbstract,
         dependencies={
             'abstract_service': abstract_service,
-            'abstract_theme_service': abstract_theme_service,
             'theme_service': theme_service,
             'abstract_synthesis_service': abstract_synthesis_service,
         },
         id=ABSTRACT_ID,
     )
 
-    # Joins are reloaded, the synthesizer runs, and the body updates.
-    abstract_theme_service.list.assert_called_once_with(abstract_id=ABSTRACT_ID)
+    # Owned joins are resolved, the synthesizer runs, and the body updates.
+    theme_service.get.assert_called_once_with(THEME_ID)
     abstract_synthesis_service.synthesize.assert_called_once_with(abstract, [theme])
     abstract_service.save.assert_called_once_with(abstract)
     assert result.body == SYNTHESIZED_BODY
@@ -351,15 +311,17 @@ def test_link_theme_to_abstract_missing_abstract(link_dependencies):
             theme_id=THEME_ID,
         )
 
-    # Assert the structured not-found error and that no join was written.
+    # Assert the structured not-found error and that nothing was saved.
     assert exc_info.value.error_code == ABSTRACT_NOT_FOUND_ID
-    link_dependencies['abstract_theme_service'].save.assert_not_called()
+    link_dependencies['abstract_service'].save.assert_not_called()
 
 # ** test: test_link_theme_to_abstract_missing_theme
-def test_link_theme_to_abstract_missing_theme(link_dependencies):
+def test_link_theme_to_abstract_missing_theme(abstract, link_dependencies):
     '''
     Linking an unknown theme raises THEME_NOT_FOUND.
 
+    :param abstract: The abstract fixture.
+    :type abstract: AbstractAggregate
     :param link_dependencies: Mocked link-event dependencies.
     :type link_dependencies: dict
     '''
@@ -378,7 +340,8 @@ def test_link_theme_to_abstract_missing_theme(link_dependencies):
 
     # Assert the structured not-found error and that no join was written.
     assert exc_info.value.error_code == THEME_NOT_FOUND_ID
-    link_dependencies['abstract_theme_service'].save.assert_not_called()
+    link_dependencies['abstract_service'].save.assert_not_called()
+    assert abstract.theme_count == 0
 
 # ** test: test_update_abstract_missing_abstract
 def test_update_abstract_missing_abstract():
@@ -418,7 +381,6 @@ def test_synthesize_abstract_missing_abstract():
             SynthesizeAbstract,
             dependencies={
                 'abstract_service': abstract_service,
-                'abstract_theme_service': mock.Mock(spec=AbstractThemeService),
                 'theme_service': mock.Mock(spec=ThemeService),
                 'abstract_synthesis_service': mock.Mock(spec=AbstractSynthesisService),
             },
