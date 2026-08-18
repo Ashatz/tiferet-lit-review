@@ -128,6 +128,11 @@ features:
           service_id: assemble_outline_event
           params:
             style_id: $r.style
+    add:
+      name: Add Outline Slot
+      steps:
+        - name: Add Outline Slot
+          service_id: add_outline_slot_event
     show:
       name: Show Outline
       steps:

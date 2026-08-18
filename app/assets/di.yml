@@ -127,6 +127,9 @@ services:
   assemble_outline_event:
     module_path: app.events.outline
     class_name: AssembleOutline
+  add_outline_slot_event:
+    module_path: app.events.outline
+    class_name: AddOutlineSlot
   get_outline_event:
     module_path: app.events.outline
     class_name: GetOutline

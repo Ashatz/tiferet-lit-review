@@ -258,11 +258,21 @@ cli:
             description: "The short label for this arrangement."
           - name_or_flags: ["-t", "--theme-ids"]
             type: list
-            required: true
-            description: "Theme identifiers in slot order (space-separated)."
+            required: false
+            description: "Optional theme identifiers in slot order (space-separated)."
           - name_or_flags: ["-s", "--style"]
             required: false
             description: "Optional citation style for later preview; unused to persist slots."
+      add:
+        name: Add Outline Slot
+        key: add
+        group_key: outline
+        args:
+          - name_or_flags: ["id"]
+            description: "The outline identifier to add a slot to."
+          - name_or_flags: ["-t", "--theme-id"]
+            required: true
+            description: "The theme identifier to place in the next slot."
       show:
         name: Show Outline
         key: show

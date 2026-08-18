@@ -74,11 +74,13 @@ not own those briefs.
 Because themes accumulate their own synthesized meaning and their supporting
 citations as you read, and because an abstract can already state the argument
 those themes jointly make, the **outline** of a paper is largely built *before*
-drafting starts. Arranging themes into slots turns "start from a blank page"
-into "arrange what I already know." Turning that outline into a **paper**
-creates sections the researcher (or an agent) can draft one at a time — each
-section keeping the themes that justify it and a context note for why it was
-written that way.
+drafting starts. Arranging themes into slots is a researcher or agent act —
+name an outline, then add slots one at a time or in an initial list. There is
+no outline synthesizer: an LLM may *propose* an order, but the domain only
+stores the slots the user (or agent) places. Turning that outline into a
+**paper** creates sections the researcher (or an agent) can draft one at a
+time — each section keeping the themes that justify it and a context note for
+why it was written that way.
 
 An outline is not a paper. Opening a paper **forks** the arrangement into the
 manuscript; the outline stays as a record of origin and is not kept in sync.
@@ -122,9 +124,11 @@ across its linked citations**. An abstract is not a theme of themes — it is a
 standing brief of one argument, composed from a chosen set of themes. A paper
 is the manuscript aggregate: it owns its abstract, its sections, and the
 citations used in that manuscript. Linking (citation to theme, theme to
-abstract, theme to paper section) is decoupled from writing the thesis.
-Researchers can link in bulk, craft narrative summaries manually, or trigger
-automated re-synthesis on demand.
+abstract) and arranging (theme to outline slot, theme to paper section) are
+decoupled from writing the thesis. Researchers can link in bulk, craft
+narrative summaries manually, or trigger automated re-synthesis on demand.
+Outline slots are placed the same way: by hand, one at a time, or as an
+initial list — never by a synthesis service inventing the arrangement.
 
 The central design commitment, then, is: **the theme, not the source, is the
 unit of intellectual work**, and an abstract is how a *selection* of those
