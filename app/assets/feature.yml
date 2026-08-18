@@ -89,3 +89,34 @@ features:
       steps:
         - name: Show Theme
           service_id: show_theme_event
+  abstract:
+    add:
+      name: Add Abstract
+      steps:
+        - name: Add Abstract
+          service_id: add_abstract_event
+    list:
+      name: List Abstracts
+      steps:
+        - name: List Abstracts
+          service_id: list_abstracts_event
+    show:
+      name: Show Abstract
+      steps:
+        - name: Show Abstract
+          service_id: show_abstract_event
+    update:
+      name: Update Abstract
+      steps:
+        - name: Update Abstract
+          service_id: update_abstract_event
+    link:
+      name: Link Theme To Abstract
+      steps:
+        - name: Link Theme To Abstract
+          service_id: link_theme_to_abstract_event
+    synthesize:
+      name: Synthesize Abstract
+      steps:
+        - name: Synthesize Abstract
+          service_id: synthesize_abstract_event
