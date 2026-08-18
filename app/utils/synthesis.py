@@ -1,9 +1,9 @@
-"""Lit Review Theme Synthesis Utilities
+"""Lit Review Synthesis Utilities
 
-V1 placeholder synthesis strategy. The domain vision's "theme gets sharper
-with each citation" is a design commitment this module establishes the seam
-for, not a claim that v1 ships an LLM-quality synthesizer. Swap
-NaiveThemeSynthesizer for a future implementation via di.yml only.
+V1 placeholder synthesis strategies. Theme synthesis and abstract synthesis
+are the same *kind* of act and different services. Swap either naive
+implementation for a future LLM via di.yml only. Agent-written prose lands
+through editorial update events, not by importing a model here.
 """
 
 # *** imports
@@ -12,10 +12,11 @@ NaiveThemeSynthesizer for a future implementation via di.yml only.
 from typing import List
 
 # ** app
+from ..domain.abstract import Abstract
 from ..domain.citation import Citation
 from ..domain.theme import Theme
 from ..interfaces.source import SourceService
-from ..interfaces.synthesis import ThemeSynthesisService
+from ..interfaces.synthesis import AbstractSynthesisService, ThemeSynthesisService
 
 # *** constants
 
@@ -102,3 +103,35 @@ class NaiveThemeSynthesizer(ThemeSynthesisService):
 
         # Return the short reference.
         return f'{author} ({source.year})'
+
+
+# ** util: naive_abstract_synthesizer
+class NaiveAbstractSynthesizer(AbstractSynthesisService):
+    '''
+    Placeholder AbstractSynthesisService: concatenates each joined theme's
+    name and synthesized description in insertion order. Not an LLM; swap
+    via di.yml when a later model lands.
+    '''
+
+    # * method: synthesize
+    def synthesize(self, abstract: Abstract, themes: List[Theme]) -> str:
+        '''
+        Build a concatenated brief from the full joined theme set.
+
+        :param abstract: The abstract being synthesized (unused by the naive
+            strategy beyond establishing the seam signature).
+        :type abstract: Abstract
+        :param themes: All themes currently joined to the abstract, in
+            insertion order.
+        :type themes: List[Theme]
+        :return: The concatenated abstract body.
+        :rtype: str
+        '''
+
+        # Build one "name: description" line per theme.
+        lines: List[str] = []
+        for theme in themes:
+            lines.append(f'{theme.name}: {theme.synthesized_description}')
+
+        # Join lines; empty theme sets yield an empty body.
+        return '\n'.join(lines)

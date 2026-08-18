@@ -90,3 +90,32 @@ services:
   show_theme_event:
     module_path: app.events.theme
     class_name: ShowTheme
+  abstract_service:
+    module_path: app.repos.abstract
+    class_name: AbstractH5Repository
+    parameters:
+      h5_file: .lit_review/lit_review.h5
+  abstract_synthesis_service:
+    module_path: app.utils.synthesis
+    class_name: NaiveAbstractSynthesizer
+  add_abstract_event:
+    module_path: app.events.abstract
+    class_name: AddAbstract
+  get_abstract_event:
+    module_path: app.events.abstract
+    class_name: GetAbstract
+  list_abstracts_event:
+    module_path: app.events.abstract
+    class_name: ListAbstracts
+  link_theme_to_abstract_event:
+    module_path: app.events.abstract
+    class_name: LinkThemeToAbstract
+  update_abstract_event:
+    module_path: app.events.abstract
+    class_name: UpdateAbstract
+  synthesize_abstract_event:
+    module_path: app.events.abstract
+    class_name: SynthesizeAbstract
+  show_abstract_event:
+    module_path: app.events.abstract
+    class_name: ShowAbstract

@@ -190,3 +190,60 @@ cli:
           - name_or_flags: ["-i", "--id"]
             required: true
             description: "The theme identifier to show."
+    abstract:
+      add:
+        name: Add Abstract
+        key: add
+        group_key: abstract
+        args:
+          - name_or_flags: ["-n", "--name"]
+            required: true
+            description: "The short label for the argument brief."
+          - name_or_flags: ["-d", "--body"]
+            required: false
+            description: "Optional initial body text."
+      list:
+        name: List Abstracts
+        key: list
+        group_key: abstract
+      show:
+        name: Show Abstract
+        key: show
+        group_key: abstract
+        args:
+          - name_or_flags: ["id"]
+            description: "The abstract identifier to show."
+      update:
+        name: Update Abstract
+        key: update
+        group_key: abstract
+        args:
+          - name_or_flags: ["id"]
+            description: "The abstract identifier to update."
+          - name_or_flags: ["-n", "--name"]
+            required: false
+            description: "The updated abstract name."
+          - name_or_flags: ["-d", "--body"]
+            required: false
+            description: "The editorial abstract body."
+      link:
+        name: Link Theme To Abstract
+        key: link
+        group_key: abstract
+        args:
+          - name_or_flags: ["id"]
+            description: "The abstract identifier to link a theme to."
+          - name_or_flags: ["-t", "--theme-id"]
+            required: true
+            description: "The theme identifier to include in the abstract."
+          - name_or_flags: ["-s", "--include-synthesis"]
+            type: bool
+            required: false
+            description: "Also re-synthesize the abstract from its full theme set."
+      synthesize:
+        name: Synthesize Abstract
+        key: synthesize
+        group_key: abstract
+        args:
+          - name_or_flags: ["id"]
+            description: "The abstract identifier to re-synthesize."
