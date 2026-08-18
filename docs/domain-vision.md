@@ -29,10 +29,11 @@ The lit-review knowledge base is a place to hold a growing body of research
 reading — sources, the files that belong to them when the researcher has them,
 the citations pulled from those works, the themes those citations belong to,
 the abstracts that compose a selection of those themes into an argument-level
-brief, and the bibliographic record needed to cite them correctly — in a form that
-stays organized as it grows, and that can be handed to a human or an AI
-writing assistant, fully sourced and properly citable, when it is time to
-draft.
+brief, the outline that arranges those themes into slots, the paper that
+turns those slots into drafted sections, and the bibliographic record needed
+to cite them correctly — in a form that stays organized as it grows, and that
+can be handed to a human or an AI writing assistant, fully sourced and
+properly citable, when it is time to draft.
 
 ## What we get for it
 
@@ -72,9 +73,16 @@ not own those briefs.
 ### A running head start on the writing
 Because themes accumulate their own synthesized meaning and their supporting
 citations as you read, and because an abstract can already state the argument
-those themes jointly make, the outline of a paper is largely built *before*
-drafting starts. Assembling themes into sections turns "start from a blank
-page" into "arrange what I already know."
+those themes jointly make, the **outline** of a paper is largely built *before*
+drafting starts. Arranging themes into slots turns "start from a blank page"
+into "arrange what I already know." Turning that outline into a **paper**
+creates sections the researcher (or an agent) can draft one at a time — each
+section keeping the themes that justify it and a context note for why it was
+written that way.
+
+An outline is not a paper. A paper is not a source. Storage that happens to
+look like a generic knowledge-base document is infrastructure, not a domain
+noun.
 
 ### Citations that are never orphaned, and never misformatted
 Every citation always traces back to the exact source and location it came
@@ -100,8 +108,8 @@ Everything in this domain follows one path:
 > **cite** a passage from it → **link** the citation to one or more themes →
 > **synthesize** the theme's meaning (curated or on demand) → **compose** an
 > abstract from a selection of themes → **render** citations in the paper's
-> required style → **assemble** themes into the sections and paragraphs of an
-> outline.
+> required style → **assemble** an outline from themes → **open a paper** from
+> that outline → **draft** each paper section (content + context).
 
 Sources and citations are the structural half: a source is added with its
 bibliographic detail, an optional named document can be attached so the work
@@ -110,8 +118,10 @@ precise locator, and linkages attach evidence to themes. The intellectual half
 is the theme, the abstract, and their synthesis. A theme is not declared
 complete and then filled in — it is a living synthesis that **accretes meaning
 across its linked citations**. An abstract is not a theme of themes — it is a
-standing brief of one argument, composed from a chosen set of themes. Linking
-(citation to theme, theme to abstract) is decoupled from writing the thesis.
+standing brief of one argument, composed from a chosen set of themes. A paper
+is the manuscript aggregate: it owns its abstract, its sections, and the
+citations used in that manuscript. Linking (citation to theme, theme to
+abstract, theme to paper section) is decoupled from writing the thesis.
 Researchers can link in bulk, craft narrative summaries manually, or trigger
 automated re-synthesis on demand.
 
@@ -125,10 +135,11 @@ and correctly referenced at the same time.
 
 ## What it deliberately does not do
 
-It does not write the paper. An abstract is still held material — a standing
-brief of the argument — not the draft. The actual prose, argument phrasing,
-and narrative flow remain the author's job, done with or without an agentic
-writing tool that reads from this knowledge base.
+It does not invent the paper's voice. It holds an outline, then a paper whose
+sections can be drafted by the researcher or an agent — content plus a context
+note for why the section was written that way. Narrative flow and argument
+phrasing remain the author's job. A later publication event (venue, DOI) is
+not this step; when a paper is published, that appearance can become a Source.
 
 It does not tag sources or themes for search. Themes *are* the lookup
 vocabulary; a second tag layer would be a weaker classification next to the

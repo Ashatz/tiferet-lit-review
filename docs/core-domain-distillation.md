@@ -25,7 +25,8 @@ defined once, in Section 3, and then used consistently.
 ## 2. The core domain, restated precisely
 
 The core domain is **capturing sourced evidence and synthesizing it into
-themes that can be assembled, correctly cited, into a paper's outline**.
+themes that can be arranged into an outline and drafted, correctly cited,
+into a paper**.
 
 A piece of reading does not become useful by being stored. An unattached
 bibliographic stub is inert. An attached source document is still not a
@@ -43,8 +44,8 @@ The domain has exactly one shape:
 > **cite** a passage from it → **link** the citation to a theme →
 > **synthesize** the theme's description (curated or on demand) → **compose**
 > an abstract from a selection of themes → **render** the citation in the
-> paper's required style → **assemble** themes into the sections and
-> paragraphs of an outline.
+> paper's required style → **assemble** an outline from themes → **open a
+> paper** from that outline → **draft** each paper section.
 
 and exactly two axes of variation:
 
@@ -60,8 +61,8 @@ and exactly two axes of variation:
 Everything else — attaching or retrieving a source's named document, recording
 a citation's excerpt and locator, linking a citation to a theme,
 re-synthesizing a theme's description as its linkages grow, composing an
-abstract from a selection of themes, and assembling themes into an outline —
-is identical regardless of what kind of source is
+abstract from a selection of themes, assembling an outline, and opening a
+paper whose sections can be drafted — is identical regardless of what kind of source is
 being read or what style the paper eventually needs. How a locator maps into
 an attached file, and which extension a download name carries, still follow
 the source-medium axis. That asymmetry is the single most important fact
@@ -74,10 +75,10 @@ Carries a bibliographic record and, when the researcher has the file, a named
 source document. The document is optional; the bibliographic record is not.
 
 **Source document** — the optional body of a source: the bytes of the work
-itself, held with that source and no other. It has no identity of its own and
-is not a `tiferet-kb` Document (that noun is reserved for an assembled
-outline). It is created by attaching a file to an existing source, not as a
-standalone record.
+itself, held with that source and no other. It has no identity of its own.
+A generic knowledge-base document type, if used underneath a Paper, is
+infrastructure — not this noun and not "the outline." It is created by
+attaching a file to an existing source, not as a standalone record.
 
 **Document name** — the API / download filename stored on the Source. When a
 source document is retrieved, this is the name the file is written under — not
@@ -134,8 +135,8 @@ same *kind* of act and **different services** — they do not share one
 implementation or one prompt.
 
 **Abstract** — a standing brief of one argument, composed from a chosen set of
-themes. It carries a name and a body (editorial or synthesized). It is not a
-theme of themes, not a source's published abstract, and not an outline. A
+themes. It lives in the knowledge base without a Paper. It is not a theme of
+themes, not a source's published abstract, and not a **Paper Abstract**. A
 source's printed abstract, if captured later, is bibliographic data on the
 Source and must not share this noun.
 
@@ -153,18 +154,34 @@ style, into the reference-list entry form for a source.
 **In-text citation** — a citation's locator rendered, in a given citation
 style, into the short parenthetical or footnote form used inline in prose.
 
-**Assembly** — the arrangement of one or more themes, with their supporting
-citations rendered as formatted references and in-text citations, into the
-sections and paragraphs of a paper's outline. Assembly does not draft prose; it
-arranges already-synthesized, already-cited material.
+**Assembly** — arranging one or more themes into an **Outline**. Assembly does
+not draft prose and does not create a Paper.
 
-**Outline** — the target structure (sections, and paragraph-level slots within
-them) that an assembly populates.
+**Outline** — an ordered set of theme slots. It is the arrangement of an
+argument, not the manuscript. Translating an outline creates a Paper; it does
+not turn the outline into a section.
 
-**Provenance** — the unbroken path from any piece of content appearing in an
-assembly back through its citation to its source, preserved regardless of how
-many themes that citation has been linked to or how many outlines it has been
-assembled into.
+**Paper** — the manuscript aggregate. It owns a Paper Abstract, ordered Paper
+Sections, and the Paper Citations used in that manuscript. Children are
+created through the paper, not as standalone records.
+
+**Paper Abstract** — the brief owned by a Paper. It may be copied from a KB
+Abstract and then edited. It is not the KB Abstract noun.
+
+**Paper Section** — a part of a Paper: title, drafted content (human or
+agent), a **context** note (why this section exists / why it was drafted this
+way), and an ordered list of themes that justify it. A section may have zero
+citations (methods, results). Theme membership is a join, not a blob of ids.
+
+**Paper Citation** — a citation *used in this manuscript*, resolved to a KB
+Citation / Source. Not a second evidence store.
+
+**Publication** — a later event: venue, date, DOI. Not part of drafting. When
+a paper is published, that appearance can become a Source.
+
+**Provenance** — the unbroken path from drafted paper-section content back
+through its themes and citations to sources, and from an outline slot the
+same way.
 
 ## 4. What the domain reads / operates on
 
@@ -201,10 +218,9 @@ citation or a theme *is*; both change how existing citations and themes are
 Each behavior below is a bounded step, described as a candidate domain event in
 the Tiferet sense — a unit with a clear input and output, dependencies
 supplied by injection, and an `execute(**kwargs)` entry point
-(`tiferet/events/settings.py`). Capture, cite, theme link/synthesize, and
-render already exist on `v1.x-proto`; source-document attach is specified
-(issue #2 / PR #14). Abstract composition does not exist yet. Naming that
-step here is what makes Section 10 concrete.
+(`tiferet/events/settings.py`). Capture, cite, theme link/synthesize, render,
+and source-document attach already exist on `v1.x-proto`. Abstract, outline,
+and paper do not. Naming those steps here is what makes Section 10 concrete.
 
 ### 5.1 Capturing a source
 
@@ -318,8 +334,7 @@ Candidate events: `AddAbstract`, `UpdateAbstract`, `LinkThemeToAbstract`,
   concatenator, or a later LLM is a `di.yml` change.
 
 An abstract is not assembled into an outline by this step. Assembly (5.8)
-still arranges themes; the abstract is the argument statement that can sit
-above that arrangement.
+arranges themes; opening a paper (5.9) is a later act.
 
 **Fully agnostic** with respect to both axes: composing an abstract does not
 depend on source medium or citation style. It reads theme descriptions, not
@@ -346,21 +361,47 @@ rulebooks" pattern the Tiferet Dialect Compiler uses for component types
 (`docs/compiler/core-domain-distillation.md` in `tiferet-takwin`, Section 5.4)
 — here the rulebook varies by citation style instead of by component type.
 
-### 5.8 Assembling themes into an outline
+### 5.8 Assembling an outline
 
-*Arrange one or more themes, with their linked citations rendered in the
-paper's style, into the sections and paragraphs of an outline.*
+*Arrange one or more themes into ordered slots. Do not draft prose.*
 
-Candidate event: `AssembleOutline`. Assembly reads a theme's synthesized
-description and its linked citations, resolves each citation's rendering for
-the paper's chosen style (Section 5.7), and places the result into the target
-outline's sections and paragraph slots.
+Candidate event: `AssembleOutline`. Input is an ordered list of theme ids (and
+optionally a title / style for preview renderings). Output is an **Outline** —
+slots that name themes and can preview rendered citations. This event does
+**not** create a Paper and does **not** write section content.
 
 **Agnostic** in mechanism: arranging themes into slots does not depend on
-source medium or citation style once rendering has already happened. It does,
-however, need visibility into both the theme layer and the source/citation
-layer at once (Section 7) — it is the one behavior that spans the whole
-domain rather than one link in the chain.
+source medium. Preview rendering, if offered, uses Section 5.7.
+
+### 5.9 Opening a paper and drafting sections
+
+*Turn an outline into a Paper, then add content and context to each section.*
+
+Candidate events: `OpenPaperFromOutline`, `UpdatePaperSection`,
+`SetPaperAbstract`, `AddPaperCitation`.
+
+- `OpenPaperFromOutline` creates a **Paper** aggregate. Each outline slot
+  becomes a **Paper Section** with the slot's themes already joined, empty (or
+  seeded) content, and empty context. The outline is not deleted and is not
+  itself a section.
+- `UpdatePaperSection` writes content and/or the context note (why this
+  section exists / why it was drafted this way). Content may be human or
+  agent-produced. The domain stores both; it does not own voice.
+- `SetPaperAbstract` sets the Paper-owned brief, optionally copied from a KB
+  Abstract.
+- `AddPaperCitation` records that a KB citation is used in this manuscript.
+
+Children are created through `PaperAggregate` (`add_section`, `set_abstract`,
+`add_citation`), same lifecycle rule as `add_author`. Persistence may map a
+Paper onto a generic knowledge-base document type — that mapping is
+infrastructure and must not appear in the ubiquitous language.
+
+A later **research content** domain may feed results sections that have no
+citations. Do not invent that noun here. **Publication** (venue, DOI) is a
+later event; when a paper is published, that appearance can become a Source.
+
+**Agnostic** in mechanism. Style selection affects how Paper Citations render,
+not what a section *is*.
 
 ## 6. How the behaviors compose
 
@@ -377,12 +418,13 @@ order (`app/assets/feature.yml`). The intended composition is:
   (structural); write or synthesize the body on demand.
 - **render-citation** — format a citation in a requested style, for reuse
   wherever that citation appears.
-- **assemble-outline** — arrange themes into an outline, rendering their
-  citations along the way.
+- **assemble-outline** — arrange themes into ordered slots (no prose).
+- **open-paper** — create a Paper from an outline; draft each section's
+  content and context.
 
 Capture, attach, and cite form the "reading loop." Theme link/synthesize is
-the idea loop. Abstract compose/synthesize is the argument loop. Render and
-assemble form the "drafting loop."
+the idea loop. Abstract compose/synthesize is the argument loop. Outline is
+arrangement. Paper is the drafting loop.
 
 ```mermaid
 flowchart LR
@@ -396,10 +438,12 @@ flowchart LR
   THEME --> ABS["Compose abstract<br/>unidirectional theme join"]
   ABS --> ABSYN["Synthesize abstract<br/>curated or on-demand"]
   ABSYN --> ABS
-  THEME --> ASM["Assemble outline<br/>sections + paragraphs"]
+  THEME --> ASM["Assemble outline<br/>theme slots only"]
   CITE --> REND["Render citation<br/>in paper's style"]
   REND --> ASM
-  ASM --> OUT([Outline with citations])
+  ASM --> OUT([Outline])
+  OUT --> PAP["Open paper<br/>sections from slots"]
+  PAP --> DRAFT["Draft section<br/>content + context"]
 ```
 
 ## 7. Relationships / cross-boundary rules
@@ -426,20 +470,21 @@ each is load-bearing for a specific later behavior:
   (5.6) possible: the brief is a function of the joined themes' current
   descriptions, not of citations directly and not of a blob of ids on the
   abstract. The join is unidirectional; a theme may appear in many abstracts.
-- **Theme → Outline** (via assembly) is what makes provenance survive
-  drafting: assembly must be able to walk backward from a placed theme, through
-  its citations, to their sources, so that a formatted reference appearing in
-  an outline can always be traced and re-verified.
+- **Theme → Outline** (via assembly) is arrangement only: a slot names a
+  theme so a later Paper Section can be born with that membership.
+- **Paper → Paper Section / Paper Abstract / Paper Citation** is ownership:
+  children have no life-cycle off the Paper aggregate.
+- **Paper Section → Theme** (via join) is what makes a drafted section
+  traceable: content + context walk back through themes to citations and
+  sources. A section may have zero citations.
+- **Paper Abstract** may copy a KB Abstract; it does not replace it.
 
-This is why assembly (5.8) cannot be a thin read of a theme's synthesized
-description alone. It needs the theme's current meaning **and** its full
-citation trail at the same time, because a paper's outline is expected to
-carry working citations, not just distilled prose. This is the same shape of
-requirement the Tiferet Dialect Compiler names for relationship checking:
-judging a connection correctly requires an input beyond the immediate object
-being judged (`docs/compiler/core-domain-distillation.md` in `tiferet-takwin`,
-Section 7) — there, the component type; here, the citation style and the
-source's bibliographic record.
+This is why opening a paper (5.9) cannot be "the outline, plus prose in the
+same row." Arrangement and manuscript are different acts. Judging a section
+correctly requires the theme list and the context note, not only the drafted
+text — the same shape of requirement the Tiferet Dialect Compiler names for
+relationship checking (`docs/compiler/core-domain-distillation.md` in
+`tiferet-takwin`, Section 7).
 
 ## 8. The agnostic core and the variable edge
 
@@ -453,9 +498,9 @@ Stated plainly, so that implementation work can be scoped against it:
 - Forming a unidirectional AbstractTheme join.
 - The mechanism of theme synthesis and of abstract synthesis (each a
   description given a related set). The *services* stay separate.
-- Assembling themes and their rendered citations into an outline's sections
-  and paragraph slots.
-- Provenance tracking from outline back to source.
+- Assembling themes into an outline (slots only).
+- Opening a Paper from an outline and drafting section content + context.
+- Provenance from paper section (or outline slot) back through themes to source.
 
 **Variable — one definition per axis:**
 - **Per source medium:** the expected bibliographic fields, the shape of a
@@ -495,8 +540,12 @@ separated from day one:
   parser.
 - Putting raw bytes on the Source domain object, or loading them on ordinary
   `get` / `list`, would make every bibliographic read pay for the file.
-- Treating a source document as a `tiferet-kb` Document would collide with
-  outline assembly's reuse of that noun.
+- Treating a source document, an Outline, or a Paper as a user-facing
+  `tiferet-kb` Document would put infrastructure in the ubiquitous language.
+- Treating Outline as Paper (or assembling prose into the outline) would
+  collapse arrangement and drafting.
+- Creating Paper Section / Paper Abstract / Paper Citation outside the Paper
+  aggregate would break the same lifecycle rule as a standalone SourceAuthor.
 - Treating an Abstract as a Theme of themes, or routing both through one
   `ThemeSynthesisService` / one prompt, would collapse two jobs into one
   implementation and make a later abstract LLM a branch instead of a swap.
@@ -515,27 +564,26 @@ be built to avoid.
 source document, retrieving that named body, recording citations with their
 locators, forming and refining linkages between citations and themes,
 composing an abstract from a selection of themes, rendering citations in a
-requested style, and assembling themes into an outline with working provenance
-back to source.
+requested style, assembling an outline of theme slots, and opening a Paper
+whose sections hold drafted content, context, and theme membership.
 
 **Outside the domain:**
 - Extracting text from a PDF, transcribing a book, or running OCR — supplied
   by infrastructure utilities the domain depends on (in Tiferet terms, a
   `FileService`-style component, `tiferet/interfaces/settings.py`), not
   authored by it.
-- Drafting the paper's actual prose — the author's job, whether done by hand
-  or with an agentic writing tool that reads sourced, cited themes out of this
-  knowledge base.
+- Inventing the paper's voice — the domain stores section content and a
+  context note; it does not own narrative phrasing. Publication (venue, DOI)
+  is a later event.
 - Deciding *which* citation style a given paper requires — that is supplied to
   the domain as a selection, the same way a target outline shape is supplied,
   not decided by it.
 - Managing Authors as people — identity, affiliation, name authority, merging
   two SourceAuthors into one person. A SourceAuthor is a copied name, not a
   person.
-- General file or document storage — HDF5 array I/O, blob layout, and the
-  shared `lit_review.h5` file are infrastructure the domain's repositories
-  depend on. The domain decides that a source may have a named body; it does
-  not invent a second file store.
+- Generic knowledge-base document/section types, HDF5 array I/O, and the
+  shared store — infrastructure. A Paper may persist *through* those types;
+  they are not ubiquitous-language nouns.
 
 ## 10. Where this leads
 
@@ -549,15 +597,12 @@ Items 1–4 below already exist on `v1.x-proto`. What remains:
 3. **Citation style as a declared rulebook.** Landed: APA as data the render
    event reads, not a branch inside it.
 4. **One citation style as proof.** Landed: APA through `RenderCitation`.
-5. **Source document attachment and retrieve.** Specified (issue #2); PR #14
-   open. `document_name` on `Source`, attach/retrieve, H5 array under the
-   source group.
-6. **Abstract composition.** Still open: `Abstract` + `AbstractTheme`,
-   decoupled link vs synthesize, injected `AbstractSynthesisService`.
-7. **Assembly last.** `AssembleOutline` still depends on the reading loop and
-   rendering. An abstract is not a substitute for assembly. Provenance still
-   has to survive from a captured source to a placed, correctly cited
-   paragraph.
+5. **Source document attachment and retrieve.** Landed (`v1.0.0a7`).
+6. **Abstract composition.** Specified (issue #15). Next implementable slice.
+7. **Outline assembly.** Arrangement only (issue #6, to be amended). Does not
+   create a Paper.
+8. **Paper.** Manuscript aggregate from an outline; section content + context.
+   Later than outline. Publication is later still.
 
 Each remaining item is a candidate for its own RFP. Together they are the
 difference between a set of ideas about how a literature review knowledge
