@@ -80,9 +80,10 @@ creates sections the researcher (or an agent) can draft one at a time — each
 section keeping the themes that justify it and a context note for why it was
 written that way.
 
-An outline is not a paper. A paper is not a source. Storage that happens to
-look like a generic knowledge-base document is infrastructure, not a domain
-noun.
+An outline is not a paper. Opening a paper **forks** the arrangement into the
+manuscript; the outline stays as a record of origin and is not kept in sync.
+A paper is not a source. Storage that happens to look like a generic
+knowledge-base document is infrastructure, not a domain noun.
 
 ### Citations that are never orphaned, and never misformatted
 Every citation always traces back to the exact source and location it came

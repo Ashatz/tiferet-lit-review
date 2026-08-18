@@ -158,8 +158,10 @@ style, into the short parenthetical or footnote form used inline in prose.
 not draft prose and does not create a Paper.
 
 **Outline** — an ordered set of theme slots. It is the arrangement of an
-argument, not the manuscript. Translating an outline creates a Paper; it does
-not turn the outline into a section.
+argument, not the manuscript. Opening a paper **copies** those slots into
+Paper Sections and then the two diverge. The outline remains as origin
+record (`Paper.outline_id`); it is not a live twin and is not kept in sync.
+Re-arranging means assembling a **new** outline, then opening a **new** paper.
 
 **Paper** — the manuscript aggregate. It owns a Paper Abstract, ordered Paper
 Sections, and the Paper Citations used in that manuscript. Children are
@@ -381,9 +383,11 @@ Candidate events: `OpenPaperFromOutline`, `UpdatePaperSection`,
 `SetPaperAbstract`, `AddPaperCitation`.
 
 - `OpenPaperFromOutline` creates a **Paper** aggregate. Each outline slot
-  becomes a **Paper Section** with the slot's themes already joined, empty (or
-  seeded) content, and empty context. The outline is not deleted and is not
-  itself a section.
+  becomes a **Paper Section** with the slot's themes already joined, empty
+  content, and empty context. The outline is not deleted — it is origin
+  history — and it is not itself a section. After this event the paper is
+  the working copy. Drafting a section does **not** write back to the
+  outline; changing the outline does **not** mutate an already-opened paper.
 - `UpdatePaperSection` writes content and/or the context note (why this
   section exists / why it was drafted this way). Content may be human or
   agent-produced. The domain stores both; it does not own voice.
@@ -472,6 +476,8 @@ each is load-bearing for a specific later behavior:
   abstract. The join is unidirectional; a theme may appear in many abstracts.
 - **Theme → Outline** (via assembly) is arrangement only: a slot names a
   theme so a later Paper Section can be born with that membership.
+- **Paper → Outline** is optional origin (`outline_id`), not a bidirectional
+  sync. After open they are isomorphic only at that instant.
 - **Paper → Paper Section / Paper Abstract / Paper Citation** is ownership:
   children have no life-cycle off the Paper aggregate.
 - **Paper Section → Theme** (via join) is what makes a drafted section
@@ -544,6 +550,8 @@ separated from day one:
   `tiferet-kb` Document would put infrastructure in the ubiquitous language.
 - Treating Outline as Paper (or assembling prose into the outline) would
   collapse arrangement and drafting.
+- Keeping an opened Paper and its origin Outline in live sync would force
+  two isomorphic structures to stay twins; they are not. Open is a fork.
 - Creating Paper Section / Paper Abstract / Paper Citation outside the Paper
   aggregate would break the same lifecycle rule as a standalone SourceAuthor.
 - Treating an Abstract as a Theme of themes, or routing both through one
