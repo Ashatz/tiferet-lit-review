@@ -17,6 +17,23 @@ features:
       steps:
         - name: Update Source
           service_id: update_source_event
+    attach:
+      name: Attach Source Document
+      steps:
+        - name: Attach Source Document
+          service_id: attach_source_document_event
+          params:
+            source_id: $r.id
+            path: $r.file
+            document_name: $r.name
+    download:
+      name: Download Source Document
+      steps:
+        - name: Download Source Document
+          service_id: download_source_document_event
+          params:
+            source_id: $r.id
+            out: $r.out
   citation:
     add:
       name: Add Citation

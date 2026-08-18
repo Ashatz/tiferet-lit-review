@@ -21,6 +21,18 @@ services:
   update_source_event:
     module_path: app.events.source
     class_name: UpdateSource
+  document_file_service:
+    module_path: app.utils.file
+    class_name: DocumentFileLoader
+  attach_source_document_event:
+    module_path: app.events.source
+    class_name: AttachSourceDocument
+  get_source_document_event:
+    module_path: app.events.source
+    class_name: GetSourceDocument
+  download_source_document_event:
+    module_path: app.events.source
+    class_name: DownloadSourceDocument
   add_citation_event:
     module_path: app.events.citation
     class_name: AddCitation

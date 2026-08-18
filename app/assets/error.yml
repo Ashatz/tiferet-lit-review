@@ -9,6 +9,11 @@ errors:
     message:
       - lang: en_US
         text: "A source requires at least one author."
+  SOURCE_DOCUMENT_NOT_FOUND:
+    name: Source Document Not Found
+    message:
+      - lang: en_US
+        text: "Source document not found: {id}."
   CITATION_NOT_FOUND:
     name: Citation Not Found
     message:

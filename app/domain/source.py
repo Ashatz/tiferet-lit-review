@@ -3,6 +3,7 @@
 # *** imports
 
 # ** core
+from pathlib import Path
 from time import time
 from typing import Dict, List, Optional
 from uuid import uuid4
@@ -18,6 +19,9 @@ from tiferet.domain.core import DomainObject
 
 # ** constant: page_range_locator_convention
 PAGE_RANGE_LOCATOR_CONVENTION = 'page_range'
+
+# ** constant: document_title_slug_max_length
+DOCUMENT_TITLE_SLUG_MAX_LENGTH = 32
 
 # ** constant: source_medium_locator_conventions
 SOURCE_MEDIUM_LOCATOR_CONVENTIONS: Dict[str, str] = {
@@ -222,6 +226,12 @@ class Source(DomainObject):
         description='The locator shape convention, derived from medium at creation time.',
     )
 
+    # * attribute: document_name
+    document_name: Optional[str] = Field(
+        default=None,
+        description='The API / download filename when a source document is attached.',
+    )
+
     # * attribute: created_at
     created_at: int = Field(
         default_factory=lambda: int(time()),
@@ -309,3 +319,69 @@ class Source(DomainObject):
         return self.join_authors(
             [author.format_name(author_format) for author in self.authors]
         )
+
+    # * method: slugify_document_token
+    def slugify_document_token(self, value: str) -> str:
+        '''
+        Build a filesystem-safe underscore slug from a bibliographic token.
+
+        :param value: The raw token to slugify.
+        :type value: str
+        :return: A lowercase underscore slug, or an empty string.
+        :rtype: str
+        '''
+
+        # Collapse non-alphanumeric runs to a single underscore and trim edges.
+        return re.sub(r'[^a-z0-9]+', '_', value.strip().lower()).strip('_')
+
+    # * method: document_extension
+    def document_extension(self, path: Optional[str] = None) -> str:
+        '''
+        Resolve the download extension from an upload path or this medium.
+
+        :param path: Optional upload path whose suffix takes priority.
+        :type path: Optional[str]
+        :return: The extension without a leading dot.
+        :rtype: str
+        '''
+
+        # Prefer the uploaded file's suffix when one is present.
+        if path:
+            suffix = Path(path).suffix.lstrip('.').strip().lower()
+            if suffix:
+                return suffix
+
+        # Fall back to the source medium (e.g. pdf -> pdf).
+        return self.medium
+
+    # * method: derive_document_name
+    def derive_document_name(self, path: Optional[str] = None) -> str:
+        '''
+        Derive the default API / download name for an attached document.
+
+        :param path: Optional upload path used only for the file extension.
+        :type path: Optional[str]
+        :return: The derived document name, including extension.
+        :rtype: str
+        '''
+
+        # Slug the first author's family name; fall back when none is present.
+        if self.authors:
+            first_author_slug = self.slugify_document_token(self.authors[0].last_name())
+        else:
+            first_author_slug = ''
+        first_author_slug = first_author_slug or 'source'
+
+        # Include et_al only when more than one author is on the record.
+        et_al = '_et_al' if len(self.authors) > 1 else ''
+
+        # Shorten the title slug on an underscore boundary when it is long.
+        title_slug = self.slugify_document_token(self.title) or 'untitled'
+        if len(title_slug) > DOCUMENT_TITLE_SLUG_MAX_LENGTH:
+            title_slug = title_slug[:DOCUMENT_TITLE_SLUG_MAX_LENGTH].rstrip('_')
+            if '_' in title_slug:
+                title_slug = title_slug.rsplit('_', 1)[0]
+
+        # Compose the API name from author, year, title, and extension.
+        extension = self.document_extension(path=path)
+        return f'{first_author_slug}{et_al}_{self.year}_{title_slug}.{extension}'
