@@ -12,6 +12,7 @@ from tiferet.assets import TiferetError
 
 from app.events.outline import (
     OUTLINE_NOT_FOUND_ID,
+    AddOutlineSlot,
     AssembleOutline,
     GetOutline,
     ShowOutline,
@@ -262,6 +263,148 @@ def test_assemble_outline_creates_new_id_on_reassemble(assemble_dependencies):
         slot.theme_id for slot in second.slots
     ]
     assert assemble_dependencies['outline_service'].save.call_count == 2
+
+
+# ** test: test_assemble_outline_without_themes_creates_empty_outline
+def test_assemble_outline_without_themes_creates_empty_outline(
+        assemble_dependencies,
+    ):
+    '''
+    Assembling by title alone creates an outline with zero slots.
+
+    :param assemble_dependencies: Mocked assemble-event dependencies.
+    :type assemble_dependencies: dict
+    '''
+
+    # Name an outline without an initial theme list.
+    result = DomainEvent.handle(
+        AssembleOutline,
+        dependencies=assemble_dependencies,
+        title='MLIR argument',
+    )
+
+    # The new outline is saved empty so slots can be added later.
+    assemble_dependencies['outline_service'].save.assert_called_once()
+    assemble_dependencies['theme_service'].get.assert_not_called()
+    assert result.title == 'MLIR argument'
+    assert result.slot_count == 0
+    assert result.slots == []
+
+
+# ** test: test_add_outline_slot_appends_in_order
+def test_add_outline_slot_appends_in_order(theme_a, theme_b, assemble_dependencies):
+    '''
+    Adding a slot appends the theme at the next position.
+
+    :param theme_a: The first theme fixture.
+    :type theme_a: ThemeAggregate
+    :param theme_b: The second theme fixture.
+    :type theme_b: ThemeAggregate
+    :param assemble_dependencies: Mocked assemble-event dependencies.
+    :type assemble_dependencies: dict
+    '''
+
+    # Start from an outline that already owns the first theme.
+    outline = OutlineAggregate(id=OUTLINE_ID, title='MLIR argument')
+    outline.add_slot(theme_a.id)
+    assemble_dependencies['outline_service'].get.return_value = outline
+
+    # Append the second theme by hand.
+    result = DomainEvent.handle(
+        AddOutlineSlot,
+        dependencies=assemble_dependencies,
+        id=OUTLINE_ID,
+        theme_id=THEME_ID_B,
+    )
+
+    # The owned slot is saved at the next position.
+    assemble_dependencies['outline_service'].save.assert_called_once_with(outline)
+    assert result.slot_count == 2
+    assert [slot.theme_id for slot in result.slots] == [THEME_ID_A, THEME_ID_B]
+    assert result.slots[1].position == 1
+
+
+# ** test: test_add_outline_slot_is_idempotent
+def test_add_outline_slot_is_idempotent(outline, assemble_dependencies):
+    '''
+    Re-adding an existing theme returns the outline without mutation.
+
+    :param outline: The outline fixture.
+    :type outline: OutlineAggregate
+    :param assemble_dependencies: Mocked assemble-event dependencies.
+    :type assemble_dependencies: dict
+    '''
+
+    # The outline already owns this theme slot.
+    assemble_dependencies['outline_service'].get.return_value = outline
+
+    # Re-add the first theme.
+    result = DomainEvent.handle(
+        AddOutlineSlot,
+        dependencies=assemble_dependencies,
+        id=OUTLINE_ID,
+        theme_id=THEME_ID_A,
+    )
+
+    # No save and the slot count stays at two.
+    assemble_dependencies['outline_service'].save.assert_not_called()
+    assert result is outline
+    assert result.slot_count == 2
+
+
+# ** test: test_add_outline_slot_missing_outline
+def test_add_outline_slot_missing_outline(assemble_dependencies):
+    '''
+    Adding a slot to an unknown outline raises OUTLINE_NOT_FOUND.
+
+    :param assemble_dependencies: Mocked assemble-event dependencies.
+    :type assemble_dependencies: dict
+    '''
+
+    # The outline service cannot resolve the requested id.
+    assemble_dependencies['outline_service'].get.return_value = None
+
+    # Execute and expect OUTLINE_NOT_FOUND.
+    with pytest.raises(TiferetError) as exc_info:
+        DomainEvent.handle(
+            AddOutlineSlot,
+            dependencies=assemble_dependencies,
+            id='missing-outline',
+            theme_id=THEME_ID_A,
+        )
+
+    # Assert the structured not-found error and that nothing was saved.
+    assert exc_info.value.error_code == OUTLINE_NOT_FOUND_ID
+    assemble_dependencies['outline_service'].save.assert_not_called()
+
+
+# ** test: test_add_outline_slot_missing_theme
+def test_add_outline_slot_missing_theme(outline, assemble_dependencies):
+    '''
+    Adding an unknown theme raises THEME_NOT_FOUND.
+
+    :param outline: The outline fixture.
+    :type outline: OutlineAggregate
+    :param assemble_dependencies: Mocked assemble-event dependencies.
+    :type assemble_dependencies: dict
+    '''
+
+    # The outline exists; the theme does not.
+    assemble_dependencies['outline_service'].get.return_value = outline
+
+    # Execute and expect THEME_NOT_FOUND.
+    with pytest.raises(TiferetError) as exc_info:
+        DomainEvent.handle(
+            AddOutlineSlot,
+            dependencies=assemble_dependencies,
+            id=OUTLINE_ID,
+            theme_id=MISSING_THEME_ID,
+        )
+
+    # Assert the structured not-found error and that no slot was written.
+    assert exc_info.value.error_code == THEME_NOT_FOUND_ID
+    assemble_dependencies['outline_service'].save.assert_not_called()
+    assert outline.slot_count == 2
 
 
 # ** test: test_show_outline_names_slotted_themes

@@ -51,8 +51,10 @@ class OutlineEvent(DomainEvent):
 # ** event: assemble_outline
 class AssembleOutline(DomainEvent):
     '''
-    Arrange themes into a new Outline of ordered slots.
+    Name a new Outline and optionally place an initial ordered slot list.
 
+    Arrangement is a researcher or agent act, not a synthesis service.
+    Themes may be omitted at create and added later via AddOutlineSlot.
     Re-running assemble always produces a new Outline. Style is accepted
     for CLI compatibility and is not required to persist slots.
     '''
@@ -82,20 +84,20 @@ class AssembleOutline(DomainEvent):
         self.theme_service = theme_service
 
     # * method: execute
-    @DomainEvent.parameters_required(['title', 'theme_ids'])
+    @DomainEvent.parameters_required(['title'])
     def execute(self,
             title: str,
-            theme_ids: List[str],
+            theme_ids: Optional[List[str]] = None,
             style_id: Optional[str] = None,
             **kwargs,
         ) -> Outline:
         '''
-        Assemble a new outline from an ordered list of theme identifiers.
+        Assemble a new outline, optionally from an ordered theme list.
 
         :param title: The short label for this arrangement.
         :type title: str
-        :param theme_ids: Theme identifiers in slot order.
-        :type theme_ids: List[str]
+        :param theme_ids: Optional theme identifiers in slot order.
+        :type theme_ids: Optional[List[str]]
         :param style_id: Optional style identifier; unused for persist.
         :type style_id: Optional[str]
         :param kwargs: Additional keyword arguments.
@@ -103,6 +105,9 @@ class AssembleOutline(DomainEvent):
         :return: The created outline.
         :rtype: Outline
         '''
+
+        # Default to an empty arrangement when no initial themes are supplied.
+        theme_ids = theme_ids or []
 
         # Verify every theme exists before writing any outline.
         for theme_id in theme_ids:
@@ -122,6 +127,84 @@ class AssembleOutline(DomainEvent):
 
         # Return the newly assembled outline.
         return new_outline
+
+# ** event: add_outline_slot
+class AddOutlineSlot(DomainEvent):
+    '''
+    Append a theme to an existing Outline as a structural fact.
+
+    An already-slotted theme_id is idempotent and returns the current
+    outline unchanged. This is not a synthesis step.
+    '''
+
+    # * attribute: outline_service
+    outline_service: OutlineService
+
+    # * attribute: theme_service
+    theme_service: ThemeService
+
+    # * init
+    def __init__(self,
+            outline_service: OutlineService,
+            theme_service: ThemeService,
+        ) -> None:
+        '''
+        Initialize the AddOutlineSlot event.
+
+        :param outline_service: The outline service dependency.
+        :type outline_service: OutlineService
+        :param theme_service: The theme service dependency.
+        :type theme_service: ThemeService
+        '''
+
+        # Set all injected dependencies.
+        self.outline_service = outline_service
+        self.theme_service = theme_service
+
+    # * method: execute
+    @DomainEvent.parameters_required(['id', 'theme_id'])
+    def execute(self, id: str, theme_id: str, **kwargs) -> Outline:
+        '''
+        Add a theme slot to an existing outline.
+
+        :param id: The outline identifier.
+        :type id: str
+        :param theme_id: The theme to place in the next slot.
+        :type theme_id: str
+        :param kwargs: Additional keyword arguments.
+        :type kwargs: dict
+        :return: The outline after adding (unchanged on an idempotent re-add).
+        :rtype: Outline
+        '''
+
+        # Verify the outline exists.
+        outline = self.outline_service.get(id)
+        self.verify(
+            outline is not None,
+            OUTLINE_NOT_FOUND_ID,
+            message=f'Outline not found: {id}.',
+            id=id,
+        )
+
+        # Verify the theme exists before forming the slot.
+        theme = self.theme_service.get(theme_id)
+        self.verify(
+            theme is not None,
+            THEME_NOT_FOUND_ID,
+            message=f'Theme not found: {theme_id}.',
+            id=theme_id,
+        )
+
+        # Idempotent: an already-slotted theme returns the outline unchanged.
+        added = outline.add_slot(theme_id)
+        if not added:
+            return outline
+
+        # Persist the updated outline aggregate.
+        self.outline_service.save(outline)
+
+        # Return the updated outline.
+        return outline
 
 # ** event: get_outline
 class GetOutline(OutlineEvent):
