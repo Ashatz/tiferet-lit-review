@@ -34,6 +34,11 @@ errors:
     message:
       - lang: en_US
         text: "Abstract not found: {id}."
+  OUTLINE_NOT_FOUND:
+    name: Outline Not Found
+    message:
+      - lang: en_US
+        text: "Outline not found: {id}."
   CITATION_STYLE_NOT_FOUND:
     name: Citation Style Not Found
     message:

@@ -119,3 +119,20 @@ services:
   show_abstract_event:
     module_path: app.events.abstract
     class_name: ShowAbstract
+  outline_service:
+    module_path: app.repos.outline
+    class_name: OutlineH5Repository
+    parameters:
+      h5_file: .lit_review/lit_review.h5
+  assemble_outline_event:
+    module_path: app.events.outline
+    class_name: AssembleOutline
+  get_outline_event:
+    module_path: app.events.outline
+    class_name: GetOutline
+  list_outlines_event:
+    module_path: app.events.outline
+    class_name: ListOutlines
+  show_outline_event:
+    module_path: app.events.outline
+    class_name: ShowOutline
