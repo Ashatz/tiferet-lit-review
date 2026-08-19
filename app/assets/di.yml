@@ -145,3 +145,29 @@ services:
   show_outline_event:
     module_path: app.events.outline
     class_name: ShowOutline
+  paper_service:
+    module_path: app.repos.paper
+    class_name: PaperH5Repository
+    parameters:
+      h5_file: .lit_review/lit_review.h5
+  open_paper_from_outline_event:
+    module_path: app.events.paper
+    class_name: OpenPaperFromOutline
+  get_paper_event:
+    module_path: app.events.paper
+    class_name: GetPaper
+  list_papers_event:
+    module_path: app.events.paper
+    class_name: ListPapers
+  show_paper_event:
+    module_path: app.events.paper
+    class_name: ShowPaper
+  update_paper_section_event:
+    module_path: app.events.paper
+    class_name: UpdatePaperSection
+  set_paper_abstract_event:
+    module_path: app.events.paper
+    class_name: SetPaperAbstract
+  add_paper_citation_event:
+    module_path: app.events.paper
+    class_name: AddPaperCitation

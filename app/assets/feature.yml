@@ -159,3 +159,40 @@ features:
       steps:
         - name: List Outlines
           service_id: list_outlines_event
+  paper:
+    open:
+      name: Open Paper From Outline
+      steps:
+        - name: Open Paper From Outline
+          service_id: open_paper_from_outline_event
+    show:
+      name: Show Paper
+      steps:
+        - name: Show Paper
+          service_id: show_paper_event
+    list:
+      name: List Papers
+      steps:
+        - name: List Papers
+          service_id: list_papers_event
+    section:
+      name: Update Paper Section
+      steps:
+        - name: Update Paper Section
+          service_id: update_paper_section_event
+          params:
+            section_id: $r.section
+    abstract:
+      name: Set Paper Abstract
+      steps:
+        - name: Set Paper Abstract
+          service_id: set_paper_abstract_event
+          params:
+            abstract_id: $r.from_abstract
+    cite:
+      name: Add Paper Citation
+      steps:
+        - name: Add Paper Citation
+          service_id: add_paper_citation_event
+          params:
+            section_id: $r.section

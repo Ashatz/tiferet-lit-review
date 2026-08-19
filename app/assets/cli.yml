@@ -313,3 +313,70 @@ cli:
         name: List Outlines
         key: list
         group_key: outline
+    paper:
+      open:
+        name: Open Paper From Outline
+        key: open
+        group_key: paper
+        args:
+          - name_or_flags: ["outline_id"]
+            description: "The origin outline identifier to fork into a paper."
+          - name_or_flags: ["-n", "--title"]
+            required: false
+            description: "Optional manuscript title; defaults to the outline title."
+      show:
+        name: Show Paper
+        key: show
+        group_key: paper
+        args:
+          - name_or_flags: ["id"]
+            description: "The paper identifier to show."
+      list:
+        name: List Papers
+        key: list
+        group_key: paper
+      section:
+        name: Update Paper Section
+        key: section
+        group_key: paper
+        args:
+          - name_or_flags: ["id"]
+            description: "The paper identifier whose section to update."
+          - name_or_flags: ["-s", "--section"]
+            required: true
+            description: "The section identifier to update."
+          - name_or_flags: ["--content"]
+            required: false
+            description: "The drafted section prose."
+          - name_or_flags: ["--context"]
+            required: false
+            description: "Why this section exists / why it was drafted this way."
+          - name_or_flags: ["--title"]
+            required: false
+            description: "The updated section heading."
+      abstract:
+        name: Set Paper Abstract
+        key: abstract
+        group_key: paper
+        args:
+          - name_or_flags: ["id"]
+            description: "The paper identifier whose abstract to set."
+          - name_or_flags: ["-d", "--body"]
+            required: false
+            description: "The editorial paper brief."
+          - name_or_flags: ["--from-abstract"]
+            required: false
+            description: "Optional KB Abstract identifier to copy from."
+      cite:
+        name: Add Paper Citation
+        key: cite
+        group_key: paper
+        args:
+          - name_or_flags: ["id"]
+            description: "The paper identifier to add a citation to."
+          - name_or_flags: ["-c", "--citation-id"]
+            required: true
+            description: "The KB citation identifier used in this manuscript."
+          - name_or_flags: ["-s", "--section"]
+            required: false
+            description: "Optional paper section this citation is used in."
