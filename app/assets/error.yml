@@ -44,6 +44,16 @@ errors:
     message:
       - lang: en_US
         text: "Outline slot not found: {id}."
+  PAPER_NOT_FOUND:
+    name: Paper Not Found
+    message:
+      - lang: en_US
+        text: "Paper not found: {id}."
+  PAPER_SECTION_NOT_FOUND:
+    name: Paper Section Not Found
+    message:
+      - lang: en_US
+        text: "Paper section not found: {id}."
   CITATION_STYLE_NOT_FOUND:
     name: Citation Style Not Found
     message:

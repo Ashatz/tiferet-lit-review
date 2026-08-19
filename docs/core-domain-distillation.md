@@ -646,8 +646,9 @@ Items 1–4 below already exist on `v1.x-proto`. What remains:
 7. **Outline assembly.** Arrangement only (issue #6). Named slots with
    optional themes; incremental add/remove of themes on a slot. Does not
    create a Paper. No outline synthesizer. Nested slots later.
-8. **Paper.** Manuscript aggregate from an outline; section content + context.
-   Later than outline. Publication is later still.
+8. **Paper.** Landed (`v1.0.0a10` pending): manuscript aggregate forked from
+   an outline; section content + context; Paper Abstract and Paper Citations
+   owned through `PaperAggregate`. Publication is later still.
 
 Each remaining item is a candidate for its own RFP. Together they are the
 difference between a set of ideas about how a literature review knowledge
