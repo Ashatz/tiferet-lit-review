@@ -35,8 +35,7 @@ cli:
         key: update
         group_key: source
         args:
-          - name_or_flags: ["-i", "--id"]
-            required: true
+          - name_or_flags: ["id"]
             description: "The source identifier to update."
           - name_or_flags: ["-a", "--authors"]
             type: list
@@ -109,8 +108,7 @@ cli:
         key: update
         group_key: citation
         args:
-          - name_or_flags: ["-i", "--id"]
-            required: true
+          - name_or_flags: ["id"]
             description: "The citation identifier to update."
           - name_or_flags: ["-l", "--locator"]
             required: false
@@ -126,8 +124,7 @@ cli:
         key: render
         group_key: citation
         args:
-          - name_or_flags: ["-i", "--id"]
-            required: true
+          - name_or_flags: ["id"]
             description: "The citation identifier to render."
           - name_or_flags: ["-s", "--style"]
             required: true
@@ -165,8 +162,7 @@ cli:
         key: update
         group_key: theme
         args:
-          - name_or_flags: ["-i", "--id"]
-            required: true
+          - name_or_flags: ["id"]
             description: "The theme identifier to update."
           - name_or_flags: ["-n", "--name"]
             required: false
@@ -179,16 +175,14 @@ cli:
         key: synthesize
         group_key: theme
         args:
-          - name_or_flags: ["-i", "--id"]
-            required: true
+          - name_or_flags: ["id"]
             description: "The theme identifier to re-synthesize."
       show:
         name: Show Theme
         key: show
         group_key: theme
         args:
-          - name_or_flags: ["-i", "--id"]
-            required: true
+          - name_or_flags: ["id"]
             description: "The theme identifier to show."
     abstract:
       add:
