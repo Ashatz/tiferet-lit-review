@@ -133,6 +133,20 @@ features:
       steps:
         - name: Add Outline Slot
           service_id: add_outline_slot_event
+    add-theme:
+      name: Add Outline Slot Theme
+      steps:
+        - name: Add Outline Slot Theme
+          service_id: add_outline_slot_theme_event
+          params:
+            slot_id: $r.slot_id
+    remove-theme:
+      name: Remove Outline Slot Theme
+      steps:
+        - name: Remove Outline Slot Theme
+          service_id: remove_outline_slot_theme_event
+          params:
+            slot_id: $r.slot_id
     show:
       name: Show Outline
       steps:

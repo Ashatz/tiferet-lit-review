@@ -130,6 +130,12 @@ services:
   add_outline_slot_event:
     module_path: app.events.outline
     class_name: AddOutlineSlot
+  add_outline_slot_theme_event:
+    module_path: app.events.outline
+    class_name: AddOutlineSlotTheme
+  remove_outline_slot_theme_event:
+    module_path: app.events.outline
+    class_name: RemoveOutlineSlotTheme
   get_outline_event:
     module_path: app.events.outline
     class_name: GetOutline

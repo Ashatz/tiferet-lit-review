@@ -44,7 +44,7 @@ The domain has exactly one shape:
 > **cite** a passage from it → **link** the citation to a theme →
 > **synthesize** the theme's description (curated or on demand) → **compose**
 > an abstract from a selection of themes → **render** the citation in the
-> paper's required style → **assemble** an outline from themes → **open a
+> paper's required style → **assemble** an outline of named slots → **open a
 > paper** from that outline → **draft** each paper section.
 
 and exactly two axes of variation:
@@ -154,20 +154,25 @@ style, into the reference-list entry form for a source.
 **In-text citation** — a citation's locator rendered, in a given citation
 style, into the short parenthetical or footnote form used inline in prose.
 
-**Assembly** — arranging one or more themes into an **Outline**. Assembly is
-a researcher or agent act: name the outline, then place slots. It is **not**
-synthesis — there is no outline synthesizer and no prompt that invents the
-order. Assembly does not draft prose and does not create a Paper.
+**Assembly** — arranging named slots into an **Outline**, then including
+themes in those slots. Assembly is a researcher or agent act: name the
+outline, add slots, add or remove themes. It is **not** synthesis — there
+is no outline synthesizer and no prompt that invents the order. Assembly
+does not draft prose and does not create a Paper.
 
-**Outline** — an ordered set of theme slots. It is the arrangement of an
-argument, not the manuscript. Slots may be supplied as an initial list or
-appended one at a time (`AddOutlineSlot`); an already-slotted theme is left
-unchanged. Opening a paper **copies** those slots into Paper Sections and
-then the two diverge. The outline remains as origin record (`Paper.outline_id`);
-it is not a live twin and is not kept in sync. Re-arranging the *whole*
-argument means assembling a **new** outline, then opening a **new** paper.
-Appending a slot to an existing outline that has not yet been opened is
-still the same arrangement.
+**Outline** — an ordered set of named slots. It is the arrangement of an
+argument, not the manuscript. Opening a paper **copies** those slots into
+Paper Sections and then the two diverge. The outline remains as origin
+record (`Paper.outline_id`); it is not a live twin and is not kept in sync.
+Re-arranging the *whole* argument means assembling a **new** outline, then
+opening a **new** paper. Adding a slot, or adding or removing a theme on an
+existing slot that has not yet been opened, is still the same arrangement.
+
+**OutlineSlot** — the outline form of a section: a stable `id`, a human
+`title`, and an optional list of themes. It is owned by the Outline, has no
+drafted `content` or `context`, and is not a Theme. Themes may be omitted at
+create and added or removed later. Nested / hierarchical slots are out of
+scope for this pass.
 
 **Paper** — the manuscript aggregate. It owns a Paper Abstract, ordered Paper
 Sections, and the Paper Citations used in that manuscript. Children are
@@ -343,7 +348,7 @@ Candidate events: `AddAbstract`, `UpdateAbstract`, `LinkThemeToAbstract`,
   concatenator, or a later LLM is a `di.yml` change.
 
 An abstract is not assembled into an outline by this step. Assembly (5.8)
-arranges themes; opening a paper (5.9) is a later act.
+arranges named slots; opening a paper (5.9) is a later act.
 
 **Fully agnostic** with respect to both axes: composing an abstract does not
 depend on source medium or citation style. It reads theme descriptions, not
@@ -372,28 +377,32 @@ rulebooks" pattern the Tiferet Dialect Compiler uses for component types
 
 ### 5.8 Assembling an outline
 
-*Arrange one or more themes into ordered slots. Do not draft prose.*
+*Arrange named slots, then include optional themes in those slots. Do not
+draft prose.*
 
-Candidate events: `AssembleOutline`, `AddOutlineSlot`, `GetOutline` /
+Candidate events: `AssembleOutline`, `AddOutlineSlot`,
+`AddOutlineSlotTheme`, `RemoveOutlineSlotTheme`, `GetOutline` /
 `ShowOutline` / `ListOutlines`.
 
-- `AssembleOutline` names a new Outline. An ordered list of theme ids is
-  optional: omit it to create an empty arrangement, or pass it as a one-shot
-  initial order. Every supplied theme is verified first; any miss writes
-  nothing. Re-running assemble always creates a **new** Outline.
-- `AddOutlineSlot` is the incremental user mechanic — the outline analogue of
-  `LinkThemeToAbstract`. Verify outline and theme, then append via
-  `OutlineAggregate.add_slot`. An already-slotted theme is idempotent. This
-  is structural arrangement, not synthesis: there is no outline synthesizer
-  and no opt-in rewrite of anything.
+- `AssembleOutline` names a new empty Outline. Re-running assemble always
+  creates a **new** Outline.
+- `AddOutlineSlot` appends a named grouping via `OutlineAggregate.add_slot`.
+  A title is required; themes are optional at create. Every supplied theme is
+  verified first; any miss writes nothing. A missing outline is
+  `OUTLINE_NOT_FOUND`.
+- `AddOutlineSlotTheme` / `RemoveOutlineSlotTheme` adjust themes on an
+  existing slot. Both require `has_slot`; a missing slot is
+  `OUTLINE_SLOT_NOT_FOUND`. Re-adding a theme already on that slot, or
+  removing a theme that is not there, is idempotent.
 
-Output is an **Outline** — slots that name themes and can preview rendered
-citations. These events do **not** create a Paper and do **not** write
-section content. An LLM may propose an order as a caller; the domain only
-stores the slots that were placed.
+Output is an **Outline** — named slots that may include themes and can
+preview rendered citations. These events do **not** create a Paper and do
+**not** write section content. An LLM may propose an order as a caller; the
+domain only stores the slots that were placed. Nested slots are not in this
+pass.
 
-**Agnostic** in mechanism: arranging themes into slots does not depend on
-source medium. Preview rendering, if offered, uses Section 5.7.
+**Agnostic** in mechanism: arranging named slots does not depend on source
+medium. Preview rendering, if offered, uses Section 5.7.
 
 ### 5.9 Opening a paper and drafting sections
 
@@ -442,8 +451,8 @@ order (`app/assets/feature.yml`). The intended composition is:
   (structural); write or synthesize the body on demand.
 - **render-citation** — format a citation in a requested style, for reuse
   wherever that citation appears.
-- **assemble-outline** — name an outline and place theme slots (initial list
-  and/or incremental add; no prose, no synthesizer).
+- **assemble-outline** — name an outline, add named slots, and add or remove
+  themes on those slots (no prose, no synthesizer).
 - **open-paper** — create a Paper from an outline; draft each section's
   content and context.
 
@@ -463,7 +472,7 @@ flowchart LR
   THEME --> ABS["Compose abstract<br/>unidirectional theme join"]
   ABS --> ABSYN["Synthesize abstract<br/>curated or on-demand"]
   ABSYN --> ABS
-  THEME --> ASM["Assemble outline<br/>name + add slots"]
+  THEME --> ASM["Assemble outline<br/>named slots + themes"]
   CITE --> REND["Render citation<br/>in paper's style"]
   REND --> ASM
   ASM --> OUT([Outline])
@@ -495,9 +504,10 @@ each is load-bearing for a specific later behavior:
   (5.6) possible: the brief is a function of the joined themes' current
   descriptions, not of citations directly and not of a blob of ids on the
   abstract. The join is unidirectional; a theme may appear in many abstracts.
-- **Theme → Outline** (via assembly / `AddOutlineSlot`) is arrangement only:
-  a slot names a theme so a later Paper Section can be born with that
-  membership. The join is owned by the outline, not a second CRUD vertical.
+- **Theme → Outline** (via named `OutlineSlot` / `AddOutlineSlotTheme`) is
+  arrangement only: a slot is a titled grouping that may include themes so a
+  later Paper Section can be born with that membership. The slot and its
+  theme joins are owned by the outline, not a second CRUD vertical.
 - **Paper → Outline** is optional origin (`outline_id`), not a bidirectional
   sync. After open they are isomorphic only at that instant.
 - **Paper → Paper Section / Paper Abstract / Paper Citation** is ownership:
@@ -526,8 +536,8 @@ Stated plainly, so that implementation work can be scoped against it:
 - Forming a unidirectional AbstractTheme join.
 - The mechanism of theme synthesis and of abstract synthesis (each a
   description given a related set). The *services* stay separate.
-- Assembling themes into an outline (slots only; initial list or incremental
-  add; not a synthesis service).
+- Assembling named slots into an outline (title plus optional themes; add or
+  remove themes on an existing slot; not a synthesis service).
 - Opening a Paper from an outline and drafting section content + context.
 - Provenance from paper section (or outline slot) back through themes to source.
 
@@ -598,7 +608,7 @@ be built to avoid.
 source document, retrieving that named body, recording citations with their
 locators, forming and refining linkages between citations and themes,
 composing an abstract from a selection of themes, rendering citations in a
-requested style, assembling an outline of theme slots, and opening a Paper
+requested style, assembling an outline of named slots, and opening a Paper
 whose sections hold drafted content, context, and theme membership.
 
 **Outside the domain:**
@@ -633,8 +643,9 @@ Items 1–4 below already exist on `v1.x-proto`. What remains:
 4. **One citation style as proof.** Landed: APA through `RenderCitation`.
 5. **Source document attachment and retrieve.** Landed (`v1.0.0a7`).
 6. **Abstract composition.** Landed (`v1.0.0a8`).
-7. **Outline assembly.** Arrangement only (issue #6). Incremental slot add
-   plus optional initial list. Does not create a Paper. No outline synthesizer.
+7. **Outline assembly.** Arrangement only (issue #6). Named slots with
+   optional themes; incremental add/remove of themes on a slot. Does not
+   create a Paper. No outline synthesizer. Nested slots later.
 8. **Paper.** Manuscript aggregate from an outline; section content + context.
    Later than outline. Publication is later still.
 
