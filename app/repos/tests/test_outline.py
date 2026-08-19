@@ -39,16 +39,19 @@ def repo(tmp_path) -> OutlineH5Repository:
 @pytest.fixture
 def outline() -> OutlineAggregate:
     '''
-    Build an outline aggregate with two owned slots.
+    Build an outline aggregate with one named slot and two themes.
 
-    :return: An outline arranged from two themes.
+    :return: An outline arranged as a named grouping of two themes.
     :rtype: OutlineAggregate
     '''
 
     # Return an outline whose slots can be saved and rehydrated.
     assembled = OutlineAggregate(title='MLIR argument')
-    assembled.add_slot(THEME_ID_A)
-    assembled.add_slot(THEME_ID_B)
+    assembled.add_slot(
+        'Introduction',
+        theme_ids=[THEME_ID_A, THEME_ID_B],
+        id='intro-slot',
+    )
     return assembled
 
 
@@ -69,12 +72,17 @@ def test_save_and_get_restores_slots_in_order(repo, outline):
     repo.save(outline)
     loaded = repo.get(outline.id)
 
-    # The rehydrated outline owns both slots in assembly order.
+    # The rehydrated outline owns the named slot and both theme joins.
     assert loaded is not None
     assert loaded.title == 'MLIR argument'
-    assert loaded.slot_count == 2
-    assert [slot.theme_id for slot in loaded.slots] == [THEME_ID_A, THEME_ID_B]
-    assert [slot.position for slot in loaded.slots] == [0, 1]
+    assert loaded.slot_count == 1
+    assert loaded.slots[0].id == 'intro-slot'
+    assert loaded.slots[0].title == 'Introduction'
+    assert [theme.theme_id for theme in loaded.slots[0].themes] == [
+        THEME_ID_A,
+        THEME_ID_B,
+    ]
+    assert loaded.slots[0].position == 0
 
 
 # ** test_int: test_list_filters_by_theme_id

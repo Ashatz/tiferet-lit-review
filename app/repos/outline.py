@@ -115,7 +115,9 @@ class OutlineH5Repository(OutlineService, H5Repository):
         if theme_id is not None:
             outlines = [
                 outline for outline in outlines
-                if any(slot.theme_id == theme_id for slot in outline.slots)
+                if any(
+                    slot.has_theme(theme_id) for slot in outline.slots
+                )
             ]
 
         # Return the mapped outline aggregates.

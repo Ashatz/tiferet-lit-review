@@ -25,6 +25,9 @@ from .theme import THEME_NOT_FOUND_ID
 # ** constant: outline_not_found_id
 OUTLINE_NOT_FOUND_ID = 'OUTLINE_NOT_FOUND'
 
+# ** constant: outline_slot_not_found_id
+OUTLINE_SLOT_NOT_FOUND_ID = 'OUTLINE_SLOT_NOT_FOUND'
+
 # *** events
 
 # ** event: outline_event
@@ -49,55 +52,28 @@ class OutlineEvent(DomainEvent):
         self.outline_service = outline_service
 
 # ** event: assemble_outline
-class AssembleOutline(DomainEvent):
+class AssembleOutline(OutlineEvent):
     '''
-    Name a new Outline and optionally place an initial ordered slot list.
+    Name a new Outline with no slots.
 
     Arrangement is a researcher or agent act, not a synthesis service.
-    Themes may be omitted at create and added later via AddOutlineSlot.
-    Re-running assemble always produces a new Outline. Style is accepted
-    for CLI compatibility and is not required to persist slots.
+    Named slots are added later via AddOutlineSlot. Re-running assemble
+    always produces a new Outline. Style is accepted for CLI compatibility
+    and is not required to persist the outline.
     '''
-
-    # * attribute: outline_service
-    outline_service: OutlineService
-
-    # * attribute: theme_service
-    theme_service: ThemeService
-
-    # * init
-    def __init__(self,
-            outline_service: OutlineService,
-            theme_service: ThemeService,
-        ) -> None:
-        '''
-        Initialize the AssembleOutline event.
-
-        :param outline_service: The outline service dependency.
-        :type outline_service: OutlineService
-        :param theme_service: The theme service dependency.
-        :type theme_service: ThemeService
-        '''
-
-        # Set all injected dependencies.
-        self.outline_service = outline_service
-        self.theme_service = theme_service
 
     # * method: execute
     @DomainEvent.parameters_required(['title'])
     def execute(self,
             title: str,
-            theme_ids: Optional[List[str]] = None,
             style_id: Optional[str] = None,
             **kwargs,
         ) -> Outline:
         '''
-        Assemble a new outline, optionally from an ordered theme list.
+        Assemble a new empty outline.
 
         :param title: The short label for this arrangement.
         :type title: str
-        :param theme_ids: Optional theme identifiers in slot order.
-        :type theme_ids: Optional[List[str]]
         :param style_id: Optional style identifier; unused for persist.
         :type style_id: Optional[str]
         :param kwargs: Additional keyword arguments.
@@ -106,23 +82,8 @@ class AssembleOutline(DomainEvent):
         :rtype: Outline
         '''
 
-        # Default to an empty arrangement when no initial themes are supplied.
-        theme_ids = theme_ids or []
-
-        # Verify every theme exists before writing any outline.
-        for theme_id in theme_ids:
-            theme = self.theme_service.get(theme_id)
-            self.verify(
-                theme is not None,
-                THEME_NOT_FOUND_ID,
-                message=f'Theme not found: {theme_id}.',
-                id=theme_id,
-            )
-
-        # Create the outline and own each slot in the supplied order.
+        # Create an empty arrangement so named slots can be added later.
         new_outline = OutlineAggregate(title=title)
-        for theme_id in theme_ids:
-            new_outline.add_slot(theme_id)
         self.outline_service.save(new_outline)
 
         # Return the newly assembled outline.
@@ -131,10 +92,10 @@ class AssembleOutline(DomainEvent):
 # ** event: add_outline_slot
 class AddOutlineSlot(DomainEvent):
     '''
-    Append a theme to an existing Outline as a structural fact.
+    Append a named slot to an existing Outline as a structural fact.
 
-    An already-slotted theme_id is idempotent and returns the current
-    outline unchanged. This is not a synthesis step.
+    Themes are optional at create and may be added later. This is not a
+    synthesis step.
     '''
 
     # * attribute: outline_service
@@ -162,14 +123,101 @@ class AddOutlineSlot(DomainEvent):
         self.theme_service = theme_service
 
     # * method: execute
-    @DomainEvent.parameters_required(['id', 'theme_id'])
-    def execute(self, id: str, theme_id: str, **kwargs) -> Outline:
+    @DomainEvent.parameters_required(['id', 'title'])
+    def execute(self,
+            id: str,
+            title: str,
+            theme_ids: Optional[List[str]] = None,
+            **kwargs,
+        ) -> Outline:
         '''
-        Add a theme slot to an existing outline.
+        Add a named slot to an existing outline.
 
         :param id: The outline identifier.
         :type id: str
-        :param theme_id: The theme to place in the next slot.
+        :param title: The human heading for this grouping.
+        :type title: str
+        :param theme_ids: Optional theme identifiers to include at create.
+        :type theme_ids: Optional[List[str]]
+        :param kwargs: Additional keyword arguments.
+        :type kwargs: dict
+        :return: The outline after adding the named slot.
+        :rtype: Outline
+        '''
+
+        # Default to an empty grouping when no initial themes are supplied.
+        theme_ids = theme_ids or []
+
+        # Verify the outline exists.
+        outline = self.outline_service.get(id)
+        self.verify(
+            outline is not None,
+            OUTLINE_NOT_FOUND_ID,
+            message=f'Outline not found: {id}.',
+            id=id,
+        )
+
+        # Verify every theme exists before forming the slot.
+        for theme_id in theme_ids:
+            theme = self.theme_service.get(theme_id)
+            self.verify(
+                theme is not None,
+                THEME_NOT_FOUND_ID,
+                message=f'Theme not found: {theme_id}.',
+                id=theme_id,
+            )
+
+        # Own the named slot, including any verified initial themes.
+        outline.add_slot(title, theme_ids=theme_ids)
+        self.outline_service.save(outline)
+
+        # Return the updated outline.
+        return outline
+
+# ** event: add_outline_slot_theme
+class AddOutlineSlotTheme(DomainEvent):
+    '''
+    Include a theme in an existing named slot as a structural fact.
+
+    An already-joined theme_id is idempotent and returns the current
+    outline unchanged. A missing slot raises OUTLINE_SLOT_NOT_FOUND.
+    '''
+
+    # * attribute: outline_service
+    outline_service: OutlineService
+
+    # * attribute: theme_service
+    theme_service: ThemeService
+
+    # * init
+    def __init__(self,
+            outline_service: OutlineService,
+            theme_service: ThemeService,
+        ) -> None:
+        '''
+        Initialize the AddOutlineSlotTheme event.
+
+        :param outline_service: The outline service dependency.
+        :type outline_service: OutlineService
+        :param theme_service: The theme service dependency.
+        :type theme_service: ThemeService
+        '''
+
+        # Set all injected dependencies.
+        self.outline_service = outline_service
+        self.theme_service = theme_service
+
+    # * method: execute
+    @DomainEvent.parameters_required(['id', 'slot_id', 'theme_id'])
+    def execute(self, id: str, slot_id: str, theme_id: str, **kwargs) -> Outline:
+        '''
+        Add a theme to an existing named slot.
+
+        :param id: The outline identifier.
+        :type id: str
+        :param slot_id: The slot identifier to join the theme to.
+        :type slot_id: str
+        :param theme_id: The theme to include in the slot.
         :type theme_id: str
         :param kwargs: Additional keyword arguments.
         :type kwargs: dict
@@ -186,7 +234,15 @@ class AddOutlineSlot(DomainEvent):
             id=id,
         )
 
-        # Verify the theme exists before forming the slot.
+        # Verify the named slot belongs to this outline.
+        self.verify(
+            outline.has_slot(slot_id),
+            OUTLINE_SLOT_NOT_FOUND_ID,
+            message=f'Outline slot not found: {slot_id}.',
+            id=slot_id,
+        )
+
+        # Verify the theme exists before forming the join.
         theme = self.theme_service.get(theme_id)
         self.verify(
             theme is not None,
@@ -195,9 +251,64 @@ class AddOutlineSlot(DomainEvent):
             id=theme_id,
         )
 
-        # Idempotent: an already-slotted theme returns the outline unchanged.
-        added = outline.add_slot(theme_id)
+        # Idempotent: an already-joined theme returns the outline unchanged.
+        added = outline.add_theme(slot_id, theme_id)
         if not added:
+            return outline
+
+        # Persist the updated outline aggregate.
+        self.outline_service.save(outline)
+
+        # Return the updated outline.
+        return outline
+
+# ** event: remove_outline_slot_theme
+class RemoveOutlineSlotTheme(OutlineEvent):
+    '''
+    Remove a theme from an existing named slot as a structural fact.
+
+    A theme that is not joined is idempotent and returns the current
+    outline unchanged. A missing slot raises OUTLINE_SLOT_NOT_FOUND.
+    '''
+
+    # * method: execute
+    @DomainEvent.parameters_required(['id', 'slot_id', 'theme_id'])
+    def execute(self, id: str, slot_id: str, theme_id: str, **kwargs) -> Outline:
+        '''
+        Remove a theme from an existing named slot.
+
+        :param id: The outline identifier.
+        :type id: str
+        :param slot_id: The slot identifier to remove the theme from.
+        :type slot_id: str
+        :param theme_id: The theme to remove from the slot.
+        :type theme_id: str
+        :param kwargs: Additional keyword arguments.
+        :type kwargs: dict
+        :return: The outline after removal (unchanged when the theme is absent).
+        :rtype: Outline
+        '''
+
+        # Verify the outline exists.
+        outline = self.outline_service.get(id)
+        self.verify(
+            outline is not None,
+            OUTLINE_NOT_FOUND_ID,
+            message=f'Outline not found: {id}.',
+            id=id,
+        )
+
+        # Verify the named slot belongs to this outline.
+        self.verify(
+            outline.has_slot(slot_id),
+            OUTLINE_SLOT_NOT_FOUND_ID,
+            message=f'Outline slot not found: {slot_id}.',
+            id=slot_id,
+        )
+
+        # Idempotent: a missing join returns the outline unchanged.
+        removed = outline.remove_theme(slot_id, theme_id)
+        if not removed:
             return outline
 
         # Persist the updated outline aggregate.
@@ -271,10 +382,10 @@ class ListOutlines(OutlineEvent):
 # ** event: show_outline
 class ShowOutline(OutlineEvent):
     '''
-    Display an outline's slots plus each arranged theme.
+    Display an outline's named slots plus each arranged theme.
 
     Optional style_id adds a live citation preview via RenderCitation.
-    Theme names and order are always required; preview is optional.
+    Slot titles and theme names are always required; preview is optional.
     '''
 
     # * attribute: theme_service
@@ -375,22 +486,23 @@ class ShowOutline(OutlineEvent):
     # * method: _load_slotted_themes
     def _load_slotted_themes(self, outline: OutlineAggregate) -> List[Theme]:
         '''
-        Resolve every Theme currently slotted on the outline.
+        Resolve every Theme currently joined to the outline's slots.
 
         :param outline: The outline whose owned slots to resolve.
         :type outline: OutlineAggregate
-        :return: The slotted themes in assembly order.
+        :return: The slotted themes in slot-then-join order.
         :rtype: List[Theme]
         '''
 
-        # Resolve each owned slot, skipping any theme that can no longer be loaded.
+        # Resolve each owned join, skipping any theme that can no longer be loaded.
         themes = []
         for slot in outline.slots:
-            theme = self.theme_service.get(slot.theme_id)
-            if theme is not None:
-                themes.append(theme)
+            for join in slot.themes:
+                theme = self.theme_service.get(join.theme_id)
+                if theme is not None:
+                    themes.append(theme)
 
-        # Return the full set in slot order.
+        # Return the full set in slot-then-join order.
         return themes
 
     # * method: _preview_citations
