@@ -120,3 +120,42 @@ features:
       steps:
         - name: Synthesize Abstract
           service_id: synthesize_abstract_event
+  outline:
+    assemble:
+      name: Assemble Outline
+      steps:
+        - name: Assemble Outline
+          service_id: assemble_outline_event
+          params:
+            style_id: $r.style
+    add:
+      name: Add Outline Slot
+      steps:
+        - name: Add Outline Slot
+          service_id: add_outline_slot_event
+    add-theme:
+      name: Add Outline Slot Theme
+      steps:
+        - name: Add Outline Slot Theme
+          service_id: add_outline_slot_theme_event
+          params:
+            slot_id: $r.slot_id
+    remove-theme:
+      name: Remove Outline Slot Theme
+      steps:
+        - name: Remove Outline Slot Theme
+          service_id: remove_outline_slot_theme_event
+          params:
+            slot_id: $r.slot_id
+    show:
+      name: Show Outline
+      steps:
+        - name: Show Outline
+          service_id: show_outline_event
+          params:
+            style_id: $r.style
+    list:
+      name: List Outlines
+      steps:
+        - name: List Outlines
+          service_id: list_outlines_event

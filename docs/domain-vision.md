@@ -29,7 +29,7 @@ The lit-review knowledge base is a place to hold a growing body of research
 reading — sources, the files that belong to them when the researcher has them,
 the citations pulled from those works, the themes those citations belong to,
 the abstracts that compose a selection of those themes into an argument-level
-brief, the outline that arranges those themes into slots, the paper that
+brief, the outline that arranges those themes into named slots, the paper that
 turns those slots into drafted sections, and the bibliographic record needed
 to cite them correctly — in a form that stays organized as it grows, and that
 can be handed to a human or an AI writing assistant, fully sourced and
@@ -74,11 +74,15 @@ not own those briefs.
 Because themes accumulate their own synthesized meaning and their supporting
 citations as you read, and because an abstract can already state the argument
 those themes jointly make, the **outline** of a paper is largely built *before*
-drafting starts. Arranging themes into slots turns "start from a blank page"
-into "arrange what I already know." Turning that outline into a **paper**
-creates sections the researcher (or an agent) can draft one at a time — each
-section keeping the themes that justify it and a context note for why it was
-written that way.
+drafting starts. Arranging an outline is a researcher or agent act — name
+the outline, then add named slots and include themes in those slots. A slot
+is the outline form of a section: a title plus optional themes, not a single
+theme and not drafted prose. There is no outline synthesizer: an LLM may
+*propose* an order, but the domain only stores the slots the user (or agent)
+places. Turning that outline into a
+**paper** creates sections the researcher (or an agent) can draft one at a
+time — each section keeping the themes that justify it and a context note for
+why it was written that way.
 
 An outline is not a paper. Opening a paper **forks** the arrangement into the
 manuscript; the outline stays as a record of origin and is not kept in sync.
@@ -109,7 +113,7 @@ Everything in this domain follows one path:
 > **cite** a passage from it → **link** the citation to one or more themes →
 > **synthesize** the theme's meaning (curated or on demand) → **compose** an
 > abstract from a selection of themes → **render** citations in the paper's
-> required style → **assemble** an outline from themes → **open a paper** from
+> required style → **assemble** an outline of named slots → **open a paper** from
 > that outline → **draft** each paper section (content + context).
 
 Sources and citations are the structural half: a source is added with its
@@ -122,9 +126,12 @@ across its linked citations**. An abstract is not a theme of themes — it is a
 standing brief of one argument, composed from a chosen set of themes. A paper
 is the manuscript aggregate: it owns its abstract, its sections, and the
 citations used in that manuscript. Linking (citation to theme, theme to
-abstract, theme to paper section) is decoupled from writing the thesis.
-Researchers can link in bulk, craft narrative summaries manually, or trigger
-automated re-synthesis on demand.
+abstract) and arranging (theme to named outline slot, theme to paper section)
+are decoupled from writing the thesis. Researchers can link in bulk, craft
+narrative summaries manually, or trigger automated re-synthesis on demand.
+Outline slots are placed the same way: by hand, as named groupings whose
+themes can be added or removed — never by a synthesis service inventing the
+arrangement.
 
 The central design commitment, then, is: **the theme, not the source, is the
 unit of intellectual work**, and an abstract is how a *selection* of those

@@ -247,3 +247,69 @@ cli:
         args:
           - name_or_flags: ["id"]
             description: "The abstract identifier to re-synthesize."
+    outline:
+      assemble:
+        name: Assemble Outline
+        key: assemble
+        group_key: outline
+        args:
+          - name_or_flags: ["-n", "--title"]
+            required: true
+            description: "The short label for this arrangement."
+          - name_or_flags: ["-s", "--style"]
+            required: false
+            description: "Optional citation style for later preview; unused to persist the outline."
+      add:
+        name: Add Outline Slot
+        key: add
+        group_key: outline
+        args:
+          - name_or_flags: ["id"]
+            description: "The outline identifier to add a slot to."
+          - name_or_flags: ["-n", "--title"]
+            required: true
+            description: "The human heading for this grouping."
+          - name_or_flags: ["-t", "--theme-ids"]
+            type: list
+            required: false
+            description: "Optional theme identifiers to include in the slot (space-separated)."
+      add-theme:
+        name: Add Outline Slot Theme
+        key: add-theme
+        group_key: outline
+        args:
+          - name_or_flags: ["id"]
+            description: "The outline identifier whose slot to update."
+          - name_or_flags: ["-s", "--slot-id"]
+            required: true
+            description: "The slot identifier to add a theme to."
+          - name_or_flags: ["-t", "--theme-id"]
+            required: true
+            description: "The theme identifier to include in the slot."
+      remove-theme:
+        name: Remove Outline Slot Theme
+        key: remove-theme
+        group_key: outline
+        args:
+          - name_or_flags: ["id"]
+            description: "The outline identifier whose slot to update."
+          - name_or_flags: ["-s", "--slot-id"]
+            required: true
+            description: "The slot identifier to remove a theme from."
+          - name_or_flags: ["-t", "--theme-id"]
+            required: true
+            description: "The theme identifier to remove from the slot."
+      show:
+        name: Show Outline
+        key: show
+        group_key: outline
+        args:
+          - name_or_flags: ["id"]
+            description: "The outline identifier to show."
+          - name_or_flags: ["-s", "--style"]
+            required: false
+            description: "Optional citation style for live citation preview."
+      list:
+        name: List Outlines
+        key: list
+        group_key: outline
