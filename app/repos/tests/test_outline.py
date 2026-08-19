@@ -34,7 +34,6 @@ def repo(tmp_path) -> OutlineH5Repository:
     # Return a repository pointing at an isolated temp file.
     return OutlineH5Repository(h5_file=str(tmp_path / 'lit_review.h5'))
 
-
 # ** fixture: outline
 @pytest.fixture
 def outline() -> OutlineAggregate:
@@ -53,7 +52,6 @@ def outline() -> OutlineAggregate:
         id='intro-slot',
     )
     return assembled
-
 
 # *** tests
 
@@ -84,7 +82,6 @@ def test_save_and_get_restores_slots_in_order(repo, outline):
     ]
     assert loaded.slots[0].position == 0
 
-
 # ** test_int: test_list_filters_by_theme_id
 def test_list_filters_by_theme_id(repo, outline):
     '''
@@ -104,7 +101,6 @@ def test_list_filters_by_theme_id(repo, outline):
     # Only the matching filter returns the saved outline.
     assert [item.id for item in matching] == [outline.id]
     assert missing == []
-
 
 # ** test_int: test_exists_and_missing_get
 def test_exists_and_missing_get(repo, outline):

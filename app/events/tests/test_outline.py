@@ -70,7 +70,6 @@ def theme_a() -> ThemeAggregate:
         linkage_count=1,
     )
 
-
 # ** fixture: theme_b
 @pytest.fixture
 def theme_b() -> ThemeAggregate:
@@ -88,7 +87,6 @@ def theme_b() -> ThemeAggregate:
         synthesized_description='Lower in small verified steps.',
         linkage_count=1,
     )
-
 
 # ** fixture: outline
 @pytest.fixture
@@ -116,7 +114,6 @@ def outline(theme_a, theme_b) -> OutlineAggregate:
     )
     return assembled
 
-
 # ** fixture: assemble_dependencies
 @pytest.fixture
 def assemble_dependencies() -> dict:
@@ -131,7 +128,6 @@ def assemble_dependencies() -> dict:
     return {
         'outline_service': mock.Mock(spec=OutlineService),
     }
-
 
 # ** fixture: slot_dependencies
 @pytest.fixture
@@ -165,7 +161,6 @@ def slot_dependencies(theme_a, theme_b) -> dict:
         'outline_service': outline_service,
         'theme_service': theme_service,
     }
-
 
 # ** fixture: show_dependencies
 @pytest.fixture
@@ -209,7 +204,6 @@ def show_dependencies(outline, theme_a, theme_b) -> dict:
         'citation_style_service': citation_style_service,
     }
 
-
 # *** tests
 
 # ** test: test_assemble_outline_creates_empty_outline
@@ -236,7 +230,6 @@ def test_assemble_outline_creates_empty_outline(assemble_dependencies):
     assert not hasattr(result, 'content')
     assert not hasattr(result, 'context')
 
-
 # ** test: test_assemble_outline_creates_new_id_on_reassemble
 def test_assemble_outline_creates_new_id_on_reassemble(assemble_dependencies):
     '''
@@ -261,7 +254,6 @@ def test_assemble_outline_creates_new_id_on_reassemble(assemble_dependencies):
     # Each assemble is a new outline.
     assert first.id != second.id
     assert assemble_dependencies['outline_service'].save.call_count == 2
-
 
 # ** test: test_add_outline_slot_appends_named_grouping
 def test_add_outline_slot_appends_named_grouping(theme_a, theme_b, slot_dependencies):
@@ -302,7 +294,6 @@ def test_add_outline_slot_appends_named_grouping(theme_a, theme_b, slot_dependen
     assert not hasattr(result, 'content')
     assert not hasattr(result, 'context')
 
-
 # ** test: test_add_outline_slot_without_themes
 def test_add_outline_slot_without_themes(slot_dependencies):
     '''
@@ -332,7 +323,6 @@ def test_add_outline_slot_without_themes(slot_dependencies):
     assert result.slots[0].theme_count == 0
     assert result.slots[0].themes == []
 
-
 # ** test: test_add_outline_slot_missing_outline
 def test_add_outline_slot_missing_outline(slot_dependencies):
     '''
@@ -357,7 +347,6 @@ def test_add_outline_slot_missing_outline(slot_dependencies):
     # Assert the structured not-found error and that nothing was saved.
     assert exc_info.value.error_code == OUTLINE_NOT_FOUND_ID
     slot_dependencies['outline_service'].save.assert_not_called()
-
 
 # ** test: test_add_outline_slot_missing_theme
 def test_add_outline_slot_missing_theme(outline, slot_dependencies):
@@ -388,7 +377,6 @@ def test_add_outline_slot_missing_theme(outline, slot_dependencies):
     slot_dependencies['outline_service'].save.assert_not_called()
     assert outline.slot_count == 1
 
-
 # ** test: test_add_outline_slot_theme_is_idempotent
 def test_add_outline_slot_theme_is_idempotent(outline, slot_dependencies):
     '''
@@ -416,7 +404,6 @@ def test_add_outline_slot_theme_is_idempotent(outline, slot_dependencies):
     slot_dependencies['outline_service'].save.assert_not_called()
     assert result is outline
     assert result.slots[0].theme_count == 2
-
 
 # ** test: test_add_outline_slot_theme_missing_slot
 def test_add_outline_slot_theme_missing_slot(outline, slot_dependencies):
@@ -446,7 +433,6 @@ def test_add_outline_slot_theme_missing_slot(outline, slot_dependencies):
     assert exc_info.value.error_code == OUTLINE_SLOT_NOT_FOUND_ID
     slot_dependencies['outline_service'].save.assert_not_called()
 
-
 # ** test: test_remove_outline_slot_theme
 def test_remove_outline_slot_theme(outline, slot_dependencies):
     '''
@@ -475,7 +461,6 @@ def test_remove_outline_slot_theme(outline, slot_dependencies):
     assert result.slots[0].theme_count == 1
     assert [theme.theme_id for theme in result.slots[0].themes] == [THEME_ID_B]
 
-
 # ** test: test_remove_outline_slot_theme_missing_slot
 def test_remove_outline_slot_theme_missing_slot(outline, slot_dependencies):
     '''
@@ -503,7 +488,6 @@ def test_remove_outline_slot_theme_missing_slot(outline, slot_dependencies):
     # Assert the structured not-found error and that nothing was saved.
     assert exc_info.value.error_code == OUTLINE_SLOT_NOT_FOUND_ID
     slot_dependencies['outline_service'].save.assert_not_called()
-
 
 # ** test: test_show_outline_names_slots_and_themes
 def test_show_outline_names_slots_and_themes(
@@ -549,7 +533,6 @@ def test_show_outline_names_slots_and_themes(
     assert not hasattr(result, 'context')
     show_dependencies['citation_style_service'].get_rule.assert_not_called()
 
-
 # ** test: test_get_outline_missing_outline
 def test_get_outline_missing_outline():
     '''
@@ -570,7 +553,6 @@ def test_get_outline_missing_outline():
 
     # Assert the structured not-found error.
     assert exc_info.value.error_code == OUTLINE_NOT_FOUND_ID
-
 
 # ** test: test_show_outline_missing_outline
 def test_show_outline_missing_outline(show_dependencies):
