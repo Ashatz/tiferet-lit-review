@@ -65,10 +65,10 @@ A locator like `12`, `p. 12`, or `12–14` (en-dash) is invalid.
 ### Related read/update commands
 
 - `source list` — confirm the source landed; capture its `id` if you lost it.
-- `source update -i/--id` plus any of `-a`, `-y`, `-t`, `--container-title`,
+- `source update <id>` plus any of `-a`, `-y`, `-t`, `--container-title`,
   `--publisher`. Medium cannot be changed this way.
 - `citation list -s/--source-id` — required filter; returns that source only.
-- `citation update -i/--id` plus any of `-l`, `-e`, `--context-note`.
+- `citation update <id>` plus any of `-l`, `-e`, `--context-note`.
 
 Theme commands live in `tiferet-lit-review-theme`. After capture, offer
 linking; do not apply a theme without confirmation.
@@ -156,7 +156,7 @@ Thematic linking is available (`theme add`, `theme link`, `theme update`,
 4. Offer `theme update -d` for a curated narrative. Do not pass
    `--include-synthesis` or run `theme synthesize` unless they ask to replace
    that text with the naive collage.
-5. `theme show -i THEME_ID` after a successful link so they can see the result.
+5. `theme show THEME_ID` after a successful link so they can see the result.
 
 Never assign themes silently.
 
@@ -200,7 +200,7 @@ python lit_review_cli.py theme link \
   -c 9aa10000-aaaa-bbbb-cccc-ddddeeeeffff \
   -t situated-expertise
 
-python lit_review_cli.py theme show -i situated-expertise
+python lit_review_cli.py theme show situated-expertise
 ```
 
 If the year had been missing from the title page, stop after reading and ask

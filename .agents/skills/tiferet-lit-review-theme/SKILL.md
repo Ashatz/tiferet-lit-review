@@ -32,9 +32,9 @@ python lit_review_cli.py theme <command> [flags]
 | `theme add` | `-n` / `--name` (required) | Create a theme. `id` is a slug of the name, or a UUID if that slug already exists. Synthesis starts empty. |
 | `theme list` | none | List themes (name, id, linkage_count, current description). |
 | `theme link` | `-c` / `--citation-id`, `-t` / `--theme-id`, optional `-s` / `--include-synthesis` | Attach a citation. Default is structural only: new linkage + `linkage_count`, description unchanged. `-s` also re-synthesizes from the **full** linkage set. Re-linking the same pair is idempotent (no second row, no re-synth). |
-| `theme update` | `-i` / `--id` (required), optional `-n` / `--name`, `-d` / `--description` | Editorial write. `-d` sets `synthesized_description` to the exact text, including with zero citations. |
-| `theme synthesize` | `-i` / `--id` (required) | Reload all linked citations and run the injected synthesizer. |
-| `theme show` | `-i` / `--id` | Print the current description plus each linked citation's raw excerpt (not APA). |
+| `theme update` | positional `id`, optional `-n` / `--name`, `-d` / `--description` | Editorial write. `-d` sets `synthesized_description` to the exact text, including with zero citations. |
+| `theme synthesize` | positional `id` | Reload all linked citations and run the injected synthesizer. |
+| `theme show` | positional `id` | Print the current description plus each linked citation's raw excerpt (not APA). |
 
 Errors you may see:
 
@@ -109,7 +109,7 @@ rewritten as part of the link.
 Then show the result:
 
 ```bash
-python lit_review_cli.py theme show -i THEME_ID
+python lit_review_cli.py theme show THEME_ID
 ```
 
 If the researcher declines, do not link. Suggest a different existing theme
@@ -120,15 +120,14 @@ or a new name rather than forcing a fit.
 To set exact editorial text (zero citations required):
 
 ```bash
-python lit_review_cli.py theme update \
-  -i THEME_ID \
+python lit_review_cli.py theme update THEME_ID \
   -d "The curated narrative the researcher approved."
 ```
 
 To rebuild the naive collage from the current linkage set:
 
 ```bash
-python lit_review_cli.py theme synthesize -i THEME_ID
+python lit_review_cli.py theme synthesize THEME_ID
 ```
 
 Do not run `theme synthesize` or `--include-synthesis` after a curated
@@ -153,8 +152,7 @@ python lit_review_cli.py theme add -n "Expertise is enacted"
 
 # id -> expertise-is-enacted
 
-python lit_review_cli.py theme update \
-  -i expertise-is-enacted \
+python lit_review_cli.py theme update expertise-is-enacted \
   -d "Expertise is enacted in review, not stored in the reviewer."
 
 python lit_review_cli.py theme link \
@@ -165,7 +163,7 @@ python lit_review_cli.py theme link \
   -c 8bb20000-aaaa-bbbb-cccc-ddddeeeeffff \
   -t expertise-is-enacted
 
-python lit_review_cli.py theme show -i expertise-is-enacted
+python lit_review_cli.py theme show expertise-is-enacted
 ```
 
 The show output should include both excerpts and the curated description.
