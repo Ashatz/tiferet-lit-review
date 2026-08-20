@@ -6,8 +6,11 @@ description: Create themes, link existing citations to them, write or re-synthes
 # Themes in tiferet-lit-review
 
 The theme, not the source, is the unit of intellectual work. This skill
-covers the implemented theme surface on `v1.x-proto` as of `v1.0.0a6`.
-It does not assemble an outline.
+covers the implemented theme surface on `v1.x-proto` as of `v1.0.0a11`.
+Outline assembly and Paper composition are implemented elsewhere in the app
+(see § Boundary with later workflows); this skill organizes already-captured
+evidence into themes and does not assemble an Outline or open/draft a Paper
+itself.
 
 ## When to use
 
@@ -133,13 +136,23 @@ python lit_review_cli.py theme synthesize THEME_ID
 Do not run `theme synthesize` or `--include-synthesis` after a curated
 `theme update` unless the researcher asks to replace that text.
 
-## Not available yet
+## Boundary with later workflows
 
-- `outline assemble` / arranging themes into a paper skeleton (RFP-5)
-- Unlinking or re-scoping a linkage
+`outline` and `paper` are implemented CLI groups, but out of this skill's
+scope:
 
-`citation render` is implemented (RFP-4). Use it when the user asks for APA;
-it is not required to create or link a theme.
+- This skill organizes citations into themes. It does not assemble an
+  Outline slot, open a Paper, or draft prose.
+- If the researcher wants to arrange themes into a paper skeleton, point
+  them at the `outline` CLI group directly; that is a separate,
+  researcher-initiated decision.
+
+Still not available at v1:
+
+- Unlinking or re-scoping a linkage (no `theme unlink`)
+
+`citation render` is implemented. Use it when the user asks for APA; it is
+not required to create or link a theme.
 
 ## Worked example
 
@@ -178,4 +191,5 @@ Re-running the first `theme link` must not increase `linkage_count`.
 - Default `theme link` was used unless the researcher asked to synthesize.
 - Curated text went through `theme update -d`, not a silent synthesizer run.
 - `theme show` was used after linking so the researcher sees the result.
-- No unlink or outline command was invented.
+- No unlink command was invented, and no Outline/Paper composition was
+  performed from this skill.

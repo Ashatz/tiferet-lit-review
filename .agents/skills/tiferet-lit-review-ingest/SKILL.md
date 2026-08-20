@@ -6,9 +6,12 @@ description: Capture a source and its citations into the tiferet-lit-review know
 # Ingest into tiferet-lit-review
 
 Teach an agent how to turn supplied reading material into live CLI calls.
-This skill covers only what is implemented on `v1.x-proto` as of `v1.0.0a6`:
-`source`, `citation`, `theme`, and `citation render`. It does not extract
-text itself, write the paper, or assemble an outline.
+This skill covers source, citation, and theme capture — including source
+document attachment/download — as implemented on `v1.x-proto` as of
+`v1.0.0a11`. It does not extract text itself. Abstract composition, Outline
+assembly, and Paper drafting are implemented elsewhere in the app, but are
+separate, researcher-initiated workflows outside this skill's scope (see
+§ Boundary with later workflows).
 
 ## When to use
 
@@ -19,8 +22,9 @@ text itself, write the paper, or assemble an outline.
   sources and citations in the knowledge base.
 
 Do not use this skill to implement framework code, draft a paper, invent
-bibliographic fields, or call commands that do not exist yet
-(`outline assemble`).
+bibliographic fields, or call Abstract/Outline/Paper commands (`abstract add`,
+`outline assemble`, `paper open`) — those exist, but belong to separate
+composition workflows, not capture.
 
 ## Current CLI surface (do not invent flags)
 
@@ -31,11 +35,14 @@ Run every command from the repository root, with the project venv active
 python lit_review_cli.py <group> <command> [flags]
 ```
 
-Implemented groups:
+Implemented groups this skill uses:
 
-- `source add|list|update`
+- `source add|list|update|attach|download`
 - `citation add|list|update|render`
 - `theme add|list|link|update|synthesize|show`
+
+Also implemented on `v1.x-proto`, but out of this skill's scope (see
+§ Boundary with later workflows): `abstract`, `outline`, `paper`.
 
 ### `source add`
 
@@ -50,6 +57,27 @@ Implemented groups:
 
 `locator_convention` is derived from medium (`page_range` for both `pdf` and
 `book`). Do not pass it.
+
+### `source attach`
+
+Use after a successful `source add`, only when the researcher supplied a
+readable local file (the same file you read in step 1).
+
+| Flag | Required | Notes |
+|---|---|---|
+| `id` (positional) | yes | The source identifier returned by `source add` |
+| `-f` / `--file` | yes | Path to the readable local file supplied by the researcher |
+| `-n` / `--name` | no | Optional API/download name override; omit unless the researcher requests one |
+
+### `source download`
+
+Retrieval, not a new capture step. Use only if the researcher asks to pull
+the attached file back out.
+
+| Flag | Required | Notes |
+|---|---|---|
+| `id` (positional) | yes | The source identifier whose document to download |
+| `-o` / `--out` | no | Destination directory; defaults to the current working directory |
 
 ### `citation add`
 
@@ -67,6 +95,8 @@ A locator like `12`, `p. 12`, or `12–14` (en-dash) is invalid.
 - `source list` — confirm the source landed; capture its `id` if you lost it.
 - `source update <id>` plus any of `-a`, `-y`, `-t`, `--container-title`,
   `--publisher`. Medium cannot be changed this way.
+- `source attach <id> -f PATH [-n NAME]` — attach a supplied local file to
+  its source (see step 4). `source download <id> [-o DIR]` retrieves it later.
 - `citation list -s/--source-id` — required filter; returns that source only.
 - `citation update <id>` plus any of `-l`, `-e`, `--context-note`.
 
@@ -113,7 +143,25 @@ python lit_review_cli.py source add \
 Save the returned `id`. Later citations need it. If the command prints a
 structured object, take `id` from that object — do not invent a slug.
 
-### 4. Identify candidate citations
+### 4. Attach the supplied document (when applicable)
+
+If the researcher handed you a readable local file (the same PDF/book file
+you read in step 1), attach it to the source you just captured:
+
+```bash
+python lit_review_cli.py source attach SOURCE_ID -f "/path/to/file.pdf"
+```
+
+Only pass `-n`/`--name` if the researcher asks for a specific download name;
+otherwise let it default. Do not attach a file you were not given, and do
+not skip this step silently when a file was supplied — either attach it or
+tell the researcher why you could not (e.g. the path is unreadable).
+
+`source download SOURCE_ID [-o /destination/dir]` retrieves the attached
+file later; it is retrieval, not a new capture step, and this skill does not
+need to call it during ingestion.
+
+### 5. Identify candidate citations
 
 Capture only passages the researcher pointed at, highlighted, or approved.
 Do not bulk-ingest an entire PDF uninvited. If they said "add this paper"
@@ -125,7 +173,7 @@ For each approved passage, record:
 - excerpt text (quote when they quoted; paraphrase only if they asked)
 - optional `context_note` when the excerpt is unclear out of context
 
-### 5. Capture citations
+### 6. Capture citations
 
 ```bash
 python lit_review_cli.py citation add \
@@ -144,7 +192,7 @@ python lit_review_cli.py citation list -s SOURCE_ID
 If `SOURCE_NOT_FOUND` or `INVALID_LOCATOR` is raised, fix the input and retry.
 Do not invent a different locator shape to "make it work."
 
-### 6. Offer thematic linking
+### 7. Offer thematic linking
 
 Thematic linking is available (`theme add`, `theme link`, `theme update`,
 `theme synthesize`, `theme show`). Follow `tiferet-lit-review-theme`:
@@ -160,14 +208,22 @@ Thematic linking is available (`theme add`, `theme link`, `theme update`,
 
 Never assign themes silently.
 
-## Not available yet
+## Boundary with later workflows
 
-Do not call or invent:
+`abstract`, `outline`, and `paper` are implemented on `v1.x-proto` (KB
+Abstracts, named-slot Outlines, and Papers forked from Outlines). They are
+separate, researcher-initiated composition workflows, not part of ingestion:
 
-- `outline assemble` / `outline show` (RFP-5)
+- After capture, this skill may offer confirmed, structural theme linking
+  (step 7). It must not assemble an Outline, open a Paper, draft prose, or
+  infer any composition decision from the ingested material.
+- A KB Abstract is never silently created or rewritten during capture.
+- A Paper is never opened during capture.
 
-Ingestion populates the knowledge base. Assembling a paper outline is a
-separate, researcher-initiated decision.
+Do not call or invent `abstract add`, `outline assemble`, or `paper open`
+from this skill. If the researcher wants to move captured material into an
+Abstract, Outline, or Paper, point them at the relevant CLI group directly —
+that decision is outside this skill's scope.
 
 ## Worked example
 
@@ -215,5 +271,8 @@ before any `source add`.
 - Existing sources were reused when the same work was already in the store.
 - No theme link ran without confirmation.
 - Default `theme link` was used unless the researcher asked to synthesize.
-- No `outline` command was attempted.
+- A supplied local file was attached with `source attach`, or the researcher
+  was told why it wasn't.
+- No `abstract`, `outline`, or `paper` command was invented or invoked from
+  this skill.
 - Returned `id`s were captured from CLI output, not guessed.
