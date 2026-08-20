@@ -19,11 +19,16 @@ feature step. It prints `pong` and exits with code `0`.
 
 Once the CLI is installed, hand a PDF, book, or excerpt to an agent in this
 repo and ask it to capture the reading. Project skills live in
-`.agents/skills/` and cover only the implemented reading loop:
+`.agents/skills/` and cover the capture and thematic-organization loop:
 
-- `tiferet-lit-review-ingest` — `source add` / `citation add` from supplied material
-- `tiferet-lit-review-theme` — `theme add` / `theme link` / `theme update` / `theme synthesize` / `theme show` after you confirm
+- `tiferet-lit-review-ingest` — `source add`, optional `source attach` for a
+  supplied local file, and `citation add` from researcher-approved passages
+- `tiferet-lit-review-theme` — `theme add` / `theme link` / `theme update` /
+  `theme synthesize` / `theme show` after you confirm
 
-Outline assembly is not implemented yet; the skills will not invent that command.
+Abstract composition (`abstract`), Outline assembly (`outline`), and Paper
+drafting (`paper`) are also implemented, but as separate, researcher-initiated
+workflows — the capture and theme skills above do not assemble an Outline,
+open a Paper, or create/rewrite a KB Abstract on their own.
 
 See [AGENTS.md](AGENTS.md) for the project's layer overview and runtime flow.
