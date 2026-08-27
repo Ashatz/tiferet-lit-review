@@ -294,6 +294,7 @@ class AttachSourceDocument(SourceEvent):
             source_id: str,
             path: str,
             document_name: Optional[str] = None,
+            name: Optional[str] = None,
             **kwargs,
         ) -> SourceAggregate:
         '''
@@ -303,8 +304,11 @@ class AttachSourceDocument(SourceEvent):
         :type source_id: str
         :param path: Filesystem path of the file being uploaded.
         :type path: str
-        :param document_name: Optional API / download name override.
+        :param document_name: Optional API / download name override for
+            programmatic callers.
         :type document_name: Optional[str]
+        :param name: Optional CLI-facing alias for document_name.
+        :type name: Optional[str]
         :param kwargs: Additional keyword arguments.
         :type kwargs: dict
         :return: The updated source aggregate.
@@ -323,8 +327,8 @@ class AttachSourceDocument(SourceEvent):
         # Read the upload as raw bytes; do not parse or OCR it.
         content = self.document_file_service.read_bytes(path)
 
-        # Use the caller override when present; otherwise derive on the source.
-        attached_name = document_name or source.derive_document_name(path=path)
+        # Prefer the programmatic override, then the CLI alias, then derivation.
+        attached_name = document_name or name or source.derive_document_name(path=path)
         source.attach_document(attached_name)
 
         # Persist the name first, then replace the single document array.
