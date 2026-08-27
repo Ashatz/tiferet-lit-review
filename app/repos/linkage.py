@@ -139,6 +139,10 @@ class LinkageH5Repository(LinkageService, H5Repository):
                 LinkageTableObject.get_description(),
             )
 
+            # Migrate a table predating the RFP-7 retirement columns so
+            # writes to an older store do not fail against a stale schema.
+            table = self._migrate_schema(h5, table)
+
             # Compare against the encoded id so StringCol bytes match.
             target_id = LinkageTableObject.encode_value(
                 linkage.id,
@@ -160,3 +164,39 @@ class LinkageH5Repository(LinkageService, H5Repository):
             # No existing row — append a new one.
             table_object.to_row(table)
             table.flush()
+
+    # * method: _migrate_schema
+    def _migrate_schema(self, h5, table):
+        '''
+        Recreate the linkages table under the current schema when an older
+        on-disk table is missing a newly declared column.
+
+        Existing rows are re-appended through LinkageTableObject, so any
+        column absent from the old schema falls back to its Linkage domain
+        default (e.g. retired_at defaults to None, i.e. active) -- every
+        pre-RFP-7 linkage was made as live evidence.
+
+        :param h5: The open H5Client for this operation.
+        :type h5: H5Client
+        :param table: The current linkages table (old or current schema).
+        :type table: Any
+        :return: The table under the current schema.
+        :rtype: Any
+        '''
+
+        # No migration needed once the schema already matches.
+        if not LinkageTableObject.verify_schema(table):
+            return table
+
+        # Preserve existing rows, then drop and recreate the table.
+        existing_rows = h5.read_rows(LINKAGES_TABLE_PATH)
+        h5.h5file.remove_node(LINKAGES_TABLE_PATH)
+        table = h5.create_table(LINKAGES_TABLE_PATH, LinkageTableObject.get_description())
+
+        # Re-append each row; columns absent from the old schema fall back
+        # to Linkage domain defaults during from_row's model_validate.
+        for row in existing_rows:
+            LinkageTableObject.from_row(row).to_row(table)
+        table.flush()
+
+        return table

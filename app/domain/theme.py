@@ -66,7 +66,13 @@ class Theme(DomainObject):
     # * attribute: linkage_count
     linkage_count: int = Field(
         default=0,
-        description='Denormalized count of linkages attached to this theme.',
+        description='Denormalized count of active linkages attached to this theme.',
+    )
+
+    # * attribute: retired_linkage_count
+    retired_linkage_count: int = Field(
+        default=0,
+        description='Denormalized count of retired linkages attached to this theme.',
     )
 
     # * attribute: created_at
