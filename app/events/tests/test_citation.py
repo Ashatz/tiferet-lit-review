@@ -10,7 +10,7 @@ from unittest import mock
 # ** app
 from tiferet import DomainEvent
 
-from app.domain.citation import MAX_TITLE_BYTES
+from app.domain.citation import MAX_CONTEXT_NOTE_BYTES, MAX_EXCERPT_BYTES, MAX_TITLE_BYTES
 from app.events.citation import AddCitation, UpdateCitation
 from app.interfaces.citation import CitationService
 from app.interfaces.source import SourceService
@@ -332,3 +332,103 @@ def test_update_citation_overlong_title_raises(citation, update_dependencies):
             title=overlong_title,
         )
     assert citation.title == 'Original title'
+
+# ** test: test_add_citation_overlong_excerpt_raises
+def test_add_citation_overlong_excerpt_raises(add_dependencies):
+    '''
+    An excerpt exceeding the byte cap is rejected rather than truncated.
+
+    :param add_dependencies: Mocked add-event dependencies.
+    :type add_dependencies: dict
+    '''
+
+    # Build an excerpt one byte over the declared cap.
+    overlong_excerpt = 'x' * (MAX_EXCERPT_BYTES + 1)
+
+    # Execute and expect a validation failure before any row changes.
+    with pytest.raises(ValidationError):
+        DomainEvent.handle(
+            AddCitation,
+            dependencies=add_dependencies,
+            source_id=SOURCE_ID,
+            locator=LOCATOR,
+            excerpt=overlong_excerpt,
+        )
+
+    # No citation was saved.
+    add_dependencies['citation_service'].save.assert_not_called()
+
+# ** test: test_add_citation_exact_capacity_excerpt_succeeds
+def test_add_citation_exact_capacity_excerpt_succeeds(add_dependencies):
+    '''
+    An excerpt exactly at the byte cap is accepted and stored intact.
+
+    :param add_dependencies: Mocked add-event dependencies.
+    :type add_dependencies: dict
+    '''
+
+    # Build an excerpt exactly at the declared cap.
+    exact_excerpt = 'x' * MAX_EXCERPT_BYTES
+
+    # Execute and expect the citation to be created and saved.
+    result = DomainEvent.handle(
+        AddCitation,
+        dependencies=add_dependencies,
+        source_id=SOURCE_ID,
+        locator=LOCATOR,
+        excerpt=exact_excerpt,
+    )
+
+    # The full excerpt is stored, byte for byte.
+    assert result.excerpt == exact_excerpt
+    add_dependencies['citation_service'].save.assert_called_once()
+
+# ** test: test_add_citation_overlong_context_note_raises
+def test_add_citation_overlong_context_note_raises(add_dependencies):
+    '''
+    A context note exceeding the byte cap is rejected rather than truncated.
+
+    :param add_dependencies: Mocked add-event dependencies.
+    :type add_dependencies: dict
+    '''
+
+    # Build a context note one byte over the declared cap.
+    overlong_note = 'x' * (MAX_CONTEXT_NOTE_BYTES + 1)
+
+    # Execute and expect a validation failure before any row changes.
+    with pytest.raises(ValidationError):
+        DomainEvent.handle(
+            AddCitation,
+            dependencies=add_dependencies,
+            source_id=SOURCE_ID,
+            locator=LOCATOR,
+            excerpt=EXCERPT,
+            context_note=overlong_note,
+        )
+
+    # No citation was saved.
+    add_dependencies['citation_service'].save.assert_not_called()
+
+# ** test: test_update_citation_overlong_excerpt_raises
+def test_update_citation_overlong_excerpt_raises(citation, update_dependencies):
+    '''
+    An overlong replacement excerpt is rejected; the original excerpt survives.
+
+    :param citation: The citation fixture.
+    :type citation: CitationAggregate
+    :param update_dependencies: Mocked update-event dependencies.
+    :type update_dependencies: dict
+    '''
+
+    # Build an excerpt one byte over the declared cap.
+    overlong_excerpt = 'x' * (MAX_EXCERPT_BYTES + 1)
+
+    # Execute and expect a validation failure; the original excerpt survives.
+    with pytest.raises(ValidationError):
+        DomainEvent.handle(
+            UpdateCitation,
+            dependencies=update_dependencies,
+            id=CITATION_ID,
+            excerpt=overlong_excerpt,
+        )
+    assert citation.excerpt == EXCERPT

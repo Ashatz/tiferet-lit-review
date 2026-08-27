@@ -6,6 +6,7 @@
 from typing import Any, Dict, List, Optional
 
 # ** infra
+import tables
 from tiferet_h5 import H5Repository
 
 # ** app
@@ -205,10 +206,44 @@ class CitationH5Repository(CitationService, H5Repository):
         if not h5.node_exists(CITATIONS_TABLE_PATH):
             return
 
-        # Upgrade in place when the live table predates a declared column.
+        # Upgrade in place when the live table predates a declared column or
+        # still carries a narrower text column than the current mapper.
         table = h5.get_table(CITATIONS_TABLE_PATH)
-        if CitationTableObject.verify_schema(table):
+        if self._schema_upgrade_required(table):
             self._upgrade_legacy_table(h5)
+
+    # * method: _schema_upgrade_required
+    def _schema_upgrade_required(self, table: Any) -> bool:
+        '''
+        Determine whether the live table's schema is stale relative to the
+        current mapper declaration.
+
+        Two conditions require an upgrade: a column declared in
+        ``_H5_TYPES`` is absent from the table (``TableObject.verify_schema``
+        reports this), or a declared ``StringCol`` is present but narrower
+        than its current width (e.g. a pre-RFP-9 4,000-byte excerpt or
+        context note). ``verify_schema`` only reports absent columns, so the
+        width comparison is done locally against each column's live dtype.
+
+        :param table: The open PyTables Table to check against the mapper.
+        :type table: Any
+        :return: True if the table's schema no longer matches the mapper.
+        :rtype: bool
+        '''
+
+        # A column declared but absent from the table always needs an upgrade.
+        if CitationTableObject.verify_schema(table):
+            return True
+
+        # A present StringCol may still be narrower than the current width.
+        for name, col in CitationTableObject._H5_TYPES.items():
+            if not isinstance(col, tables.StringCol):
+                continue
+            if table.coldtypes[name].itemsize < col.itemsize:
+                return True
+
+        # Every declared column is present and wide enough.
+        return False
 
     # * method: _recover_from_interrupted_upgrade
     def _recover_from_interrupted_upgrade(self, h5: Any) -> None:

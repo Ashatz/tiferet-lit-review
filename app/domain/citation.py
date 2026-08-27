@@ -22,6 +22,12 @@ PAGE_RANGE_LOCATOR_PATTERN = re.compile(r'^(\d+)-(\d+)$')
 # ** constant: max_title_bytes
 MAX_TITLE_BYTES = 256
 
+# ** constant: max_excerpt_bytes
+MAX_EXCERPT_BYTES = 16384
+
+# ** constant: max_context_note_bytes
+MAX_CONTEXT_NOTE_BYTES = 16384
+
 # *** models
 
 # ** model: citation
@@ -109,6 +115,46 @@ class Citation(DomainObject):
             )
 
         # Return the (possibly updated) values.
+        return values
+
+    # * method: _validate_text_capacity (validator)
+    @model_validator(mode='before')
+    @classmethod
+    def _validate_text_capacity(cls, values: dict) -> dict:
+        '''
+        Reject an excerpt or context note exceeding its declared byte capacity.
+
+        Capacity is measured in encoded UTF-8 bytes, matching the fixed-width
+        PyTables StringCol storage at the persistence boundary. A value at or
+        below the cap round-trips exactly; an over-capacity value is rejected
+        here, before persistence, rather than silently truncated.
+
+        :param values: The raw field values before construction.
+        :type values: dict
+        :return: The unchanged field values dict.
+        :rtype: dict
+        '''
+
+        # Only inspect a plain values dict for this construction/assignment call.
+        if not isinstance(values, dict):
+            return values
+
+        # Reject an over-capacity excerpt.
+        excerpt = values.get('excerpt')
+        if isinstance(excerpt, str) and len(excerpt.encode('utf-8')) > MAX_EXCERPT_BYTES:
+            raise ValueError(
+                f'Citation excerpt exceeds {MAX_EXCERPT_BYTES} UTF-8 bytes.'
+            )
+
+        # Reject an over-capacity context note.
+        context_note = values.get('context_note')
+        if isinstance(context_note, str) and \
+                len(context_note.encode('utf-8')) > MAX_CONTEXT_NOTE_BYTES:
+            raise ValueError(
+                f'Citation context note exceeds {MAX_CONTEXT_NOTE_BYTES} UTF-8 bytes.'
+            )
+
+        # Return the unchanged values.
         return values
 
     # * method: normalize_locator
