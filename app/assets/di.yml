@@ -87,6 +87,12 @@ services:
   resynthesize_theme_event:
     module_path: app.events.theme
     class_name: ResynthesizeTheme
+  retire_linkage_event:
+    module_path: app.events.theme
+    class_name: RetireLinkage
+  reinstate_linkage_event:
+    module_path: app.events.theme
+    class_name: ReinstateLinkage
   show_theme_event:
     module_path: app.events.theme
     class_name: ShowTheme
