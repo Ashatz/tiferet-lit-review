@@ -6,11 +6,12 @@
 from pathlib import Path
 from time import time
 from typing import Dict, List, Optional
+from urllib.parse import urlparse
 from uuid import uuid4
 import re
 
 # ** infra
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 # ** app
 from tiferet.domain.core import DomainObject
@@ -19,6 +20,8 @@ from tiferet.domain.core import DomainObject
 
 # ** constant: page_range_locator_convention
 PAGE_RANGE_LOCATOR_CONVENTION = 'page_range'
+# ** constant: web_locator_convention
+WEB_LOCATOR_CONVENTION = 'web_locator'
 
 # ** constant: document_title_slug_max_length
 DOCUMENT_TITLE_SLUG_MAX_LENGTH = 32
@@ -27,11 +30,13 @@ DOCUMENT_TITLE_SLUG_MAX_LENGTH = 32
 SOURCE_MEDIUM_LOCATOR_CONVENTIONS: Dict[str, str] = {
     'pdf': PAGE_RANGE_LOCATOR_CONVENTION,
     'book': PAGE_RANGE_LOCATOR_CONVENTION,
+    'web': WEB_LOCATOR_CONVENTION,
 }
 
 # ** constant: locator_convention_patterns
 LOCATOR_CONVENTION_PATTERNS: Dict[str, str] = {
     PAGE_RANGE_LOCATOR_CONVENTION: r'^\d+-\d+$',
+    WEB_LOCATOR_CONVENTION: r'^\S(?:.*\S)?$',
 }
 
 # *** functions
@@ -60,6 +65,31 @@ def is_valid_locator(locator_convention: str, locator: str) -> bool:
 
     # Match the locator against the convention's pattern.
     return bool(re.match(pattern, locator))
+
+# ** function: is_valid_source_url
+def is_valid_source_url(source_url: str) -> bool:
+    '''
+    Check whether a source URL is an absolute HTTP(S) URL with a host.
+
+    This is a local syntax check only. It never resolves, fetches, or otherwise
+    verifies the URL over the network.
+
+    :param source_url: The researcher-supplied source URL.
+    :type source_url: str
+    :return: True when the URL has a supported scheme and a host.
+    :rtype: bool
+    '''
+
+    # Reject whitespace so the persisted URL remains exactly the validated value.
+    if any(character.isspace() for character in source_url):
+        return False
+
+    # Parse only the URL structure; no network access is involved.
+    try:
+        parsed = urlparse(source_url)
+        return parsed.scheme in {'http', 'https'} and bool(parsed.hostname)
+    except ValueError:
+        return False
 
 # *** models
 
@@ -219,6 +249,11 @@ class Source(DomainObject):
         default=None,
         description='The source publisher, where applicable.',
     )
+    # * attribute: source_url
+    source_url: Optional[str] = Field(
+        default=None,
+        description='The optional HTTP(S) location of this source or online edition.',
+    )
 
     # * attribute: locator_convention
     locator_convention: str = Field(
@@ -237,6 +272,29 @@ class Source(DomainObject):
         default_factory=lambda: int(time()),
         description='The unix creation timestamp (UTC seconds since epoch).',
     )
+    # * method: _validate_source_url (validator)
+    @field_validator('source_url')
+    @classmethod
+    def _validate_source_url(cls, source_url: Optional[str]) -> Optional[str]:
+        '''
+        Normalize an absent URL and validate a supplied URL locally.
+
+        :param source_url: The optional source URL.
+        :type source_url: Optional[str]
+        :return: The validated URL, or None when it is absent.
+        :rtype: Optional[str]
+        '''
+
+        # Collapse blank input to the single absent-url representation.
+        if source_url is None or not source_url.strip():
+            return None
+
+        # Accept only a syntactically valid HTTP(S) URL; never contact it.
+        if not is_valid_source_url(source_url):
+            raise ValueError(
+                'Source URL must be an absolute HTTP(S) URL with a host and no whitespace.'
+            )
+        return source_url
 
     # * method: _derive_locator_convention (validator)
     @model_validator(mode='before')

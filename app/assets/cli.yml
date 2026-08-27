@@ -26,6 +26,9 @@ cli:
           - name_or_flags: ["--publisher"]
             required: false
             description: "The source publisher, where applicable."
+          - name_or_flags: ["--url"]
+            required: false
+            description: "Optional HTTP(S) URL for the source or online edition."
       list:
         name: List Sources
         key: list
@@ -54,6 +57,13 @@ cli:
           - name_or_flags: ["--publisher"]
             required: false
             description: "The updated source publisher."
+          - name_or_flags: ["--url"]
+            required: false
+            description: "Updated optional HTTP(S) URL for the source or online edition."
+          - name_or_flags: ["--clear-url"]
+            type: bool
+            required: false
+            description: "Clear the stored source URL."
       attach:
         name: Attach Source Document
         key: attach
