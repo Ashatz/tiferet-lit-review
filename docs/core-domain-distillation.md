@@ -309,9 +309,8 @@ and carries one locator, excerpt text, an optional surrounding-context note,
 and an optional citation title — a researcher-authored label for that specific
 excerpt, never the source's bibliographic title. `UpdateCitation` may replace
 or explicitly clear that title independently of the excerpt, locator, or
-context note. Evidence text must be retained up to its declared capacity; an
-over-capacity value is rejected visibly rather than truncated. *Specified, not
-yet implemented: RFP-9 / issue #25.*
+context note. Evidence text is retained up to its declared 16,384-byte UTF-8
+capacity; an over-capacity value is rejected visibly rather than truncated.
 
 **Agnostic**: the shape of a citation — source reference, locator, excerpt,
 optional context note, optional title — is uniform no matter the source medium.
@@ -737,13 +736,12 @@ Items 1–4 below already exist on `v1.x-proto`. What remains:
     **Not yet modeled:** bulk labeling of legacy citations, title-based
     search or filtering, and any second evidence-classification system beyond
     this single free-text label.
-11. **Citation text capacity.** Specified, not yet implemented (RFP-9, issue
-    #25): citation excerpts and context notes are retained up to a declared
-    UTF-8 byte capacity and rejected visibly when too large, rather than
-    silently truncated. The matching safe, width-aware legacy-table upgrade
-    preserves stored evidence as it exists; it does not recover text that was
-    already lost. Citation title and text-capacity changes share one
-    compatible citation-table migration seam.
+11. **Citation text capacity.** Landed: citation excerpts and context notes
+    are retained up to a 16,384-byte UTF-8 capacity and rejected visibly when
+    too large, rather than silently truncated. A safe, width-aware upgrade
+    widens a legacy citations table in place, sharing the same copy-on-write
+    migration seam RFP-8 established. **Not yet modeled:** recovery of text
+    already truncated under the old 4,000-byte limit.
 
 Each remaining item is a candidate for its own RFP. Together they are the
 difference between a set of ideas about how a literature review knowledge
