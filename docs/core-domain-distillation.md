@@ -112,8 +112,11 @@ for a PDF or book today, and whatever position concept a future medium
 requires (see Section 4).
 
 **Citation** — an excerpt or paraphrase pulled from a source, together with its
-locator and enough surrounding context to be understood on its own. The atomic
-unit of evidence in this domain.
+locator and an optional surrounding-context note that make it intelligible on
+its own. The atomic unit of evidence in this domain. Its excerpt and context
+note are evidence text, not short metadata: the persistence boundary must
+preserve their stored text up to a declared capacity and reject oversize input
+rather than silently cutting it.
 
 **Citation title** — an optional, researcher-authored label for a single
 citation: a short name for that particular excerpt, not the work it came from.
@@ -302,16 +305,19 @@ established at capture.
 stand alone.*
 
 Candidate event: `AddCitation`. A citation always refers to exactly one source
-and carries one locator, the excerpt text, and an optional citation title — a
-researcher-authored label for that specific excerpt, never the source's
-bibliographic title. `UpdateCitation` may replace or explicitly clear that
-title independently of the excerpt, locator, or context note.
+and carries one locator, excerpt text, an optional surrounding-context note,
+and an optional citation title — a researcher-authored label for that specific
+excerpt, never the source's bibliographic title. `UpdateCitation` may replace
+or explicitly clear that title independently of the excerpt, locator, or
+context note. Evidence text must be retained up to its declared capacity; an
+over-capacity value is rejected visibly rather than truncated. *Specified, not
+yet implemented: RFP-9 / issue #25.*
 
 **Agnostic**: the shape of a citation — source reference, locator, excerpt,
-optional title — is uniform no matter the source medium. **Variable** only in
-that the locator's internal shape (a page range, eventually something else)
-traces back to the source-medium axis established when the source was
-captured.
+optional context note, optional title — is uniform no matter the source medium.
+**Variable** only in that the locator's internal shape (a page range,
+eventually something else) traces back to the source-medium axis established
+when the source was captured.
 
 ### 5.4 Linking, retiring, and reinstating a citation–theme linkage
 
@@ -578,8 +584,8 @@ relationship checking (`docs/compiler/core-domain-distillation.md` in
 Stated plainly, so that implementation work can be scoped against it:
 
 **Agnostic — build once, never per axis:**
-- Recording a citation's excerpt, locator reference, and optional
-  researcher-authored title.
+- Recording and preserving a citation's excerpt, optional surrounding-context
+  note, locator reference, and optional researcher-authored title.
 - Attaching, naming, and retrieving a source document (one optional body per
   source).
 - Forming a linkage between a citation and a theme, and retiring or
@@ -662,6 +668,9 @@ separated from day one:
   into citation-style rendering, would blur a researcher's evidence label into
   the source-owned metadata that rendering must read exclusively from
   `Source.title`.
+- Treating evidence text as short metadata, or allowing a storage boundary to
+  silently truncate it, would turn a citation into an inaccurate record while
+  leaving no domain-visible signal that its evidence has been lost.
 
 Naming these now is what the first implementation slice (Section 10) should
 be built to avoid.
@@ -728,6 +737,13 @@ Items 1–4 below already exist on `v1.x-proto`. What remains:
     **Not yet modeled:** bulk labeling of legacy citations, title-based
     search or filtering, and any second evidence-classification system beyond
     this single free-text label.
+11. **Citation text capacity.** Specified, not yet implemented (RFP-9, issue
+    #25): citation excerpts and context notes are retained up to a declared
+    UTF-8 byte capacity and rejected visibly when too large, rather than
+    silently truncated. The matching safe, width-aware legacy-table upgrade
+    preserves stored evidence as it exists; it does not recover text that was
+    already lost. Citation title and text-capacity changes share one
+    compatible citation-table migration seam.
 
 Each remaining item is a candidate for its own RFP. Together they are the
 difference between a set of ideas about how a literature review knowledge
