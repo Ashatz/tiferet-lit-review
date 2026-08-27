@@ -107,8 +107,8 @@ class CitationTableObject(Citation, TableObject):
         'id': tables.StringCol(64),
         'source_id': tables.StringCol(64),
         'locator': tables.StringCol(64),
-        'excerpt': tables.StringCol(4000),
-        'context_note': tables.StringCol(4000),
+        'excerpt': tables.StringCol(16384),
+        'context_note': tables.StringCol(16384),
         'title': tables.StringCol(256),
         'created_at': tables.Int64Col(),
     }
