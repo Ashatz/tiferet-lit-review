@@ -25,7 +25,6 @@ features:
           params:
             source_id: $r.id
             path: $r.file
-            document_name: $r.name
     download:
       name: Download Source Document
       steps:

@@ -12,6 +12,9 @@ from unittest import mock
 # ** app
 from tiferet import DomainEvent
 from tiferet.assets import TiferetError
+from tiferet.contexts.feature import FeatureContext
+from tiferet.contexts.request import RequestContext
+from tiferet.repos.feature import FeatureConfigRepository
 from app.domain.source import (
     PAGE_RANGE_LOCATOR_CONVENTION,
     WEB_LOCATOR_CONVENTION,
@@ -236,6 +239,86 @@ def test_attach_source_document_uses_supplied_name(
     # The stored name is the override, not the derived bibliographic slug.
     assert result.document_name == CUSTOM_DOCUMENT_NAME
     attach_dependencies['source_service'].save_document.assert_called_once()
+
+# ** test: test_attach_source_document_uses_cli_name_alias
+def test_attach_source_document_uses_cli_name_alias(
+        multi_author_source,
+        attach_dependencies,
+    ):
+    '''
+    Attach with the CLI-facing name= alias stores that exact document name.
+
+    :param multi_author_source: The multi-author source fixture.
+    :type multi_author_source: SourceAggregate
+    :param attach_dependencies: Mocked attach-event dependencies.
+    :type attach_dependencies: dict
+    '''
+
+    # Attach as the feature configuration now does: only the name alias.
+    result = DomainEvent.handle(
+        AttachSourceDocument,
+        dependencies=attach_dependencies,
+        source_id=SOURCE_ID,
+        path=UPLOAD_PATH,
+        name=CUSTOM_DOCUMENT_NAME,
+    )
+
+    # The stored name is the CLI-supplied override, not the derived slug.
+    assert result.document_name == CUSTOM_DOCUMENT_NAME
+    attach_dependencies['source_service'].save_document.assert_called_once()
+
+# ** test: test_attach_source_document_name_alias_omitted_still_derives
+def test_attach_source_document_name_alias_omitted_still_derives(
+        multi_author_source,
+        attach_dependencies,
+    ):
+    '''
+    Attach with neither document_name nor name still derives a name.
+
+    :param multi_author_source: The multi-author source fixture.
+    :type multi_author_source: SourceAggregate
+    :param attach_dependencies: Mocked attach-event dependencies.
+    :type attach_dependencies: dict
+    '''
+
+    # Attach passing the CLI alias as None, mirroring an omitted -n/--name flag.
+    result = DomainEvent.handle(
+        AttachSourceDocument,
+        dependencies=attach_dependencies,
+        source_id=SOURCE_ID,
+        path=UPLOAD_PATH,
+        name=None,
+    )
+
+    # The name is still derived from the bibliographic record.
+    assert result.document_name.startswith('lattner_et_al_2020_')
+
+# ** test: test_attach_source_document_document_name_wins_over_name_alias
+def test_attach_source_document_document_name_wins_over_name_alias(
+        multi_author_source,
+        attach_dependencies,
+    ):
+    '''
+    A programmatic document_name takes precedence over the CLI name alias.
+
+    :param multi_author_source: The multi-author source fixture.
+    :type multi_author_source: SourceAggregate
+    :param attach_dependencies: Mocked attach-event dependencies.
+    :type attach_dependencies: dict
+    '''
+
+    # Supply both aliases; document_name must win.
+    result = DomainEvent.handle(
+        AttachSourceDocument,
+        dependencies=attach_dependencies,
+        source_id=SOURCE_ID,
+        path=UPLOAD_PATH,
+        document_name=CUSTOM_DOCUMENT_NAME,
+        name='ignored_name.pdf',
+    )
+
+    # The programmatic override is stored, not the CLI alias.
+    assert result.document_name == CUSTOM_DOCUMENT_NAME
 
 # ** test: test_attach_source_document_missing_source
 def test_attach_source_document_missing_source():
@@ -549,3 +632,69 @@ def test_update_source_replaces_and_clears_cli_url_alias():
     # Explicit clear removes only the optional provenance location.
     assert source.source_url is None
     assert source.title == 'Online Edition'
+
+# ** test: test_attach_feature_omits_name_without_parameter_not_found
+def test_attach_feature_omits_name_without_parameter_not_found():
+    '''
+    The real source.attach feature no longer eagerly resolves $r.name.
+
+    Loads the actual app/assets/feature.yml definition and executes it with
+    a mocked resolved event, proving an omitted -n/--name no longer raises
+    PARAMETER_NOT_FOUND before AttachSourceDocument runs. Uses only mocks;
+    the real .lit_review/lit_review.h5 store is never touched.
+    '''
+
+    # Load the real source.attach feature from the checked-in configuration.
+    feature_repo = FeatureConfigRepository(feature_config='app/assets/feature.yml')
+    feature = feature_repo.get('source.attach')
+
+    # Resolve to a mocked event regardless of the requested service id.
+    mock_event = mock.Mock()
+    feature_context = FeatureContext.from_domain(
+        feature,
+        get_dependency=lambda service_id, *flags: mock_event,
+    )
+
+    # Build a request as the CLI would, omitting -n/--name entirely.
+    request = RequestContext(data={'id': SOURCE_ID, 'file': UPLOAD_PATH})
+
+    # Execute without raising PARAMETER_NOT_FOUND.
+    feature_context.execute_feature(request)
+
+    # The mapped params reached the event; no document_name key is forced.
+    _, call_kwargs = mock_event.execute.call_args
+    assert call_kwargs['source_id'] == SOURCE_ID
+    assert call_kwargs['path'] == UPLOAD_PATH
+    assert 'document_name' not in call_kwargs
+
+# ** test: test_attach_feature_supplied_name_reaches_event_unchanged
+def test_attach_feature_supplied_name_reaches_event_unchanged():
+    '''
+    A supplied -n/--name reaches AttachSourceDocument unchanged as name=.
+
+    Uses the real source.attach feature definition and a mocked resolved
+    event; the real .h5 store is never touched.
+    '''
+
+    # Load the real source.attach feature from the checked-in configuration.
+    feature_repo = FeatureConfigRepository(feature_config='app/assets/feature.yml')
+    feature = feature_repo.get('source.attach')
+
+    # Resolve to a mocked event regardless of the requested service id.
+    mock_event = mock.Mock()
+    feature_context = FeatureContext.from_domain(
+        feature,
+        get_dependency=lambda service_id, *flags: mock_event,
+    )
+
+    # Build a request as the CLI would, with -n/--name supplied.
+    request = RequestContext(data={
+        'id': SOURCE_ID,
+        'file': UPLOAD_PATH,
+        'name': CUSTOM_DOCUMENT_NAME,
+    })
+    feature_context.execute_feature(request)
+
+    # The raw name value reaches the event unchanged via the request merge.
+    _, call_kwargs = mock_event.execute.call_args
+    assert call_kwargs['name'] == CUSTOM_DOCUMENT_NAME
