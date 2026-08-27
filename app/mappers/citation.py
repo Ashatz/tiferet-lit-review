@@ -68,6 +68,32 @@ class CitationAggregate(Citation, Aggregate):
         elif context_note is not None:
             self.context_note = context_note
 
+    # * method: update_title
+    def update_title(self,
+            title: Optional[str] = None,
+            *,
+            clear: bool = False,
+        ) -> None:
+        '''
+        Update or clear the citation title.
+
+        A blank or whitespace-only title is treated as absent. Normalized
+        here (rather than left to assignment-time validation) because a
+        single-field assignment does not re-run the whole-model "before"
+        validator's value substitution -- only its raise path.
+
+        :param title: The new title, if provided.
+        :type title: Optional[str]
+        :param clear: When True, set title to None.
+        :type clear: bool
+        '''
+
+        # Apply an explicit clear or a provided, normalized title value.
+        if clear:
+            self.title = None
+        elif title is not None:
+            self.title = title if title.strip() else None
+
 
 # ** mapper: citation_table_object
 class CitationTableObject(Citation, TableObject):
@@ -83,6 +109,7 @@ class CitationTableObject(Citation, TableObject):
         'locator': tables.StringCol(64),
         'excerpt': tables.StringCol(4000),
         'context_note': tables.StringCol(4000),
+        'title': tables.StringCol(256),
         'created_at': tables.Int64Col(),
     }
 

@@ -79,6 +79,7 @@ class AddCitation(CitationEvent):
             locator: str,
             excerpt: str,
             context_note: Optional[str] = None,
+            title: Optional[str] = None,
             **kwargs,
         ) -> CitationAggregate:
         '''
@@ -92,6 +93,8 @@ class AddCitation(CitationEvent):
         :type excerpt: str
         :param context_note: An optional surrounding-context note.
         :type context_note: Optional[str]
+        :param title: An optional researcher-authored label for this citation.
+        :type title: Optional[str]
         :param kwargs: Additional keyword arguments.
         :type kwargs: dict
         :return: The created citation aggregate.
@@ -116,12 +119,14 @@ class AddCitation(CitationEvent):
             locator_convention=source.locator_convention,
         )
 
-        # Create and save the citation aggregate.
+        # Create and save the citation aggregate; the Citation title
+        # validator normalizes blank input and rejects an overlong title.
         new_citation = CitationAggregate(
             source_id=source_id,
             locator=locator,
             excerpt=excerpt,
             context_note=context_note,
+            title=title,
         )
         self.citation_service.save(new_citation)
 
@@ -219,6 +224,8 @@ class UpdateCitation(CitationEvent):
             locator: Optional[str] = None,
             excerpt: Optional[str] = None,
             context_note: Optional[str] = None,
+            title: Optional[str] = None,
+            clear_title: bool = False,
             **kwargs,
         ) -> CitationAggregate:
         '''
@@ -232,6 +239,10 @@ class UpdateCitation(CitationEvent):
         :type excerpt: Optional[str]
         :param context_note: The updated context note, if provided.
         :type context_note: Optional[str]
+        :param title: The updated title, if provided.
+        :type title: Optional[str]
+        :param clear_title: When True, clear the title regardless of `title`.
+        :type clear_title: bool
         :param kwargs: Additional keyword arguments.
         :type kwargs: dict
         :return: The updated citation aggregate.
@@ -273,6 +284,13 @@ class UpdateCitation(CitationEvent):
             citation.update_excerpt(excerpt)
         if context_note is not None:
             citation.update_context_note(context_note=context_note)
+
+        # An explicit clear takes priority over a same-call title replacement;
+        # omitting both leaves the existing title untouched.
+        if clear_title:
+            citation.update_title(clear=True)
+        elif title is not None:
+            citation.update_title(title=title)
 
         # Persist the updated citation via id-upsert save.
         self.citation_service.save(citation)
