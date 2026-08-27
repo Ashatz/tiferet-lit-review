@@ -5,7 +5,7 @@
 ## The bet: organize around your argument, not around your sources
 
 Every reference manager on the market is organized the same way: it starts from
-the source. You import a PDF or a book, you tag it, maybe you highlight a
+the source. You import a PDF, book, or presentation deck, you tag it, maybe you highlight a
 passage, and the tool files that passage under the source it came from. When it
 comes time to write, you are left re-reading your own tags and highlights,
 trying to remember why you saved them and how they fit together.
@@ -26,14 +26,15 @@ precise with each one it gathers.
 ## What this domain makes real
 
 The lit-review knowledge base is a place to hold a growing body of research
-reading — sources, the files that belong to them when the researcher has them,
-the citations pulled from those works, the themes those citations belong to,
-the abstracts that compose a selection of those themes into an argument-level
-brief, the outline that arranges those themes into named slots, the paper that
-turns those slots into drafted sections, and the bibliographic record needed
-to cite them correctly — in a form that stays organized as it grows, and that
-can be handed to a human or an AI writing assistant, fully sourced and
-properly citable, when it is time to draft.
+reading — sources, a researcher's overview note about each work, the files
+that belong to them when the researcher has them, the citations pulled from
+those works, the themes those citations belong to, the abstracts that compose
+a selection of those themes into an argument-level brief, the outline that
+arranges those themes into named slots, the paper that turns those slots into
+drafted sections, and the bibliographic record needed to cite them correctly —
+in a form that stays organized as it grows, and that can be handed to a human
+or an AI writing assistant, fully sourced and properly citable, when it is
+time to draft.
 
 ## What we get for it
 
@@ -57,10 +58,14 @@ literature-gap section without being copied, retyped, or filed twice.
 
 ### A source you can reopen, not only remember
 A bibliographic stub is enough to cite a work. It is not enough to check a
-page, compare two PDFs, or hand an agent the text a locator is supposed to
-point at. When a source has an associated file, this knowledge base keeps that
-body with the source and gives it a stable download name — so the file comes
-back as *this* work, not as whatever the upload was called on disk.
+page or slide, compare two PDFs or decks, or hand an agent the text a locator
+is supposed to point at. A source also needs one place to record a researcher's
+overall note about the work — its scope, thesis, relevance, or provenance —
+without mistaking that document-level judgment for the context of one passage
+or the argument-level Abstract. When a source has an associated file, this
+knowledge base keeps that body with the source and gives it a stable download
+name — so the file comes back as *this* work, not as whatever the upload was
+called on disk.
 
 ### An argument you can state before you outline
 A theme says what the literature says about one idea. An **abstract** says
@@ -91,14 +96,15 @@ knowledge-base document is infrastructure, not a domain noun.
 
 ### Citations that are never orphaned, and never misformatted
 Every citation always traces back to the exact source and location it came
-from, and every source carries the bibliographic detail (the names as they
-appear on that work, year, title, publisher, and the rest) needed to reference
-it correctly. Those names are a copy of what the source printed — enough to
-format a citation — not a roster of people this knowledge base manages. As
-themes are assembled into paper sections, both the passage and its properly
-formatted citation travel together, so a citation dropped into a draft — by
-hand or with the help of an AI writing tool — is correct in the style the
-paper requires, not just present.
+from — a page range for a PDF or book, a slide range for a presentation, or
+the appropriate locator for a later medium — and every source carries the
+bibliographic detail (the names as they appear on that work, year, title,
+publisher, and the rest) needed to reference it correctly. Those names are a
+copy of what the source printed — enough to format a citation — not a roster
+of people this knowledge base manages. As themes are assembled into paper
+sections, both the passage and its properly formatted citation travel together,
+so a citation dropped into a draft — by hand or with the help of an AI writing
+tool — is correct in the style the paper requires, not just present.
 
 ### Reading time that compounds
 The value of a passage read once is not spent once. Because passages are kept
@@ -153,10 +159,11 @@ It does not tag sources or themes for search. Themes *are* the lookup
 vocabulary; a second tag layer would be a weaker classification next to the
 one the researcher already thinks in.
 
-It does not extract text from PDFs, transcribe books, or run OCR — that is
-infrastructure the domain depends on, not part of the domain itself. It *does*
-hold a source's associated file, name it for download, and let later work
-retrieve or compare that body. Holding the work is not the same as parsing it.
+It does not extract text from PDFs, transcribe books, parse presentation
+decks, or run OCR — that is infrastructure the domain depends on, not part of
+the domain itself. It *does* hold a source's associated file, name it for
+download, and let later work retrieve or compare that body. Holding the work is
+not the same as parsing it or turning every page or slide into a citation.
 
 It does not manage authors as people. A source keeps a copy of the name printed
 on that work so the work can be cited; it does not identify, merge, or track
