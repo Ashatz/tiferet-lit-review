@@ -115,6 +115,14 @@ requires (see Section 4).
 locator and enough surrounding context to be understood on its own. The atomic
 unit of evidence in this domain.
 
+**Citation title** — an optional, researcher-authored label for a single
+citation: a short name for that particular excerpt, not the work it came from.
+It is distinct from `Source.title`, the bibliographic title every citation
+drawn from that source already shares. Omitting it leaves the citation
+title-less; a blank or whitespace-only value is the same as omitting it.
+Citation title never enters citation-style rendering (5.7) — that reads
+`Source.title` only.
+
 **Theme** — a strand of meaning that gathers citations from one or more
 sources. A theme carries a **synthesized description**: a standing, current
 statement of what its linked citations collectively say, distinct from any one
@@ -294,12 +302,16 @@ established at capture.
 stand alone.*
 
 Candidate event: `AddCitation`. A citation always refers to exactly one source
-and carries one locator plus the excerpt text.
+and carries one locator, the excerpt text, and an optional citation title — a
+researcher-authored label for that specific excerpt, never the source's
+bibliographic title. `UpdateCitation` may replace or explicitly clear that
+title independently of the excerpt, locator, or context note.
 
-**Agnostic**: the shape of a citation — source reference, locator, excerpt —
-is uniform no matter the source medium. **Variable** only in that the locator's
-internal shape (a page range, eventually something else) traces back to the
-source-medium axis established when the source was captured.
+**Agnostic**: the shape of a citation — source reference, locator, excerpt,
+optional title — is uniform no matter the source medium. **Variable** only in
+that the locator's internal shape (a page range, eventually something else)
+traces back to the source-medium axis established when the source was
+captured.
 
 ### 5.4 Linking, retiring, and reinstating a citation–theme linkage
 
@@ -566,7 +578,8 @@ relationship checking (`docs/compiler/core-domain-distillation.md` in
 Stated plainly, so that implementation work can be scoped against it:
 
 **Agnostic — build once, never per axis:**
-- Recording a citation's excerpt and locator reference.
+- Recording a citation's excerpt, locator reference, and optional
+  researcher-authored title.
 - Attaching, naming, and retrieving a source document (one optional body per
   source).
 - Forming a linkage between a citation and a theme, and retiring or
@@ -645,6 +658,10 @@ separated from day one:
 - Making retirement a one-way door would push researchers toward re-linking as
   a workaround, which would restate a revised judgment as a brand-new one and
   lose the history the retirement was meant to keep.
+- Treating the citation title as a second bibliographic title, or feeding it
+  into citation-style rendering, would blur a researcher's evidence label into
+  the source-owned metadata that rendering must read exclusively from
+  `Source.title`.
 
 Naming these now is what the first implementation slice (Section 10) should
 be built to avoid.
@@ -654,7 +671,7 @@ be built to avoid.
 **Inside the domain:** capturing sources and their bibliographic records
 (including SourceAuthor names copied from the work), attaching and naming a
 source document, retrieving that named body, recording citations with their
-locators, forming and refining linkages between citations and themes
+locators and optional titles, forming and refining linkages between citations and themes
 (including retiring a displaced linkage and reinstating it),
 composing an abstract from a selection of themes, rendering citations in a
 requested style, assembling an outline of named slots, and opening a Paper
@@ -704,6 +721,13 @@ Items 1–4 below already exist on `v1.x-proto`. What remains:
    (recording that citation X displaced citation Y), and retirement of an
    `AbstractTheme` join — each deliberately excluded from this pass and open
    for a future RFP.
+10. **Citation title.** Landed: an optional, researcher-authored label per
+    citation (`Citation.title`), distinct from `Source.title` and never used
+    in citation-style rendering. A blank or whitespace-only value is treated
+    as absent; citations captured before this change rehydrate title-less.
+    **Not yet modeled:** bulk labeling of legacy citations, title-based
+    search or filtering, and any second evidence-classification system beyond
+    this single free-text label.
 
 Each remaining item is a candidate for its own RFP. Together they are the
 difference between a set of ideas about how a literature review knowledge
