@@ -1,6 +1,6 @@
 ---
 name: tiferet-lit-review-ingest
-description: Capture a source and its citations into the tiferet-lit-review knowledge base from a PDF, book, excerpt, or bibliographic detail the user hands over. Use this whenever the user wants material added, captured, logged, ingested, or filed into the lit-review system — even if they do not say "skill" or "ingest." Also use it when they attach a PDF or quote a passage and ask you to put it in the knowledge base.
+description: Capture a source and its citations into the tiferet-lit-review knowledge base from a PDF, book, web text, excerpt, or bibliographic detail the user hands over. Use this whenever the user wants material added, captured, logged, ingested, or filed into the lit-review system — even if they do not say "skill" or "ingest." Also use it when they attach a PDF or quote a passage and ask you to put it in the knowledge base.
 ---
 
 # Ingest into tiferet-lit-review
@@ -15,7 +15,7 @@ separate, researcher-initiated workflows outside this skill's scope (see
 
 ## When to use
 
-- The user attaches or points at a PDF, book, excerpt, or bibliographic record
+- The user attaches or points at a PDF, book, web text, excerpt, or bibliographic record
   and asks for it to be added, captured, logged, or ingested.
 - The user pastes a passage and wants it stored as evidence, not just discussed.
 - The user is starting a preliminary literature-review collection and wants
@@ -48,15 +48,18 @@ Also implemented on `v1.x-proto`, but out of this skill's scope (see
 
 | Flag | Required | Notes |
 |---|---|---|
-| `-m` / `--medium` | yes | `pdf` or `book` only |
+| `-m` / `--medium` | yes | `pdf`, `book`, or `web` |
 | `-a` / `--authors` | yes | Space-separated list; at least one. Quote any name that contains spaces. |
 | `-y` / `--year` | yes | Integer publication year |
 | `-t` / `--title` | yes | Work title |
 | `--container-title` | no | Journal or collection title |
 | `--publisher` | no | Publisher |
+| `--url` | no | Optional HTTP(S) URL for the source or online edition |
 
-`locator_convention` is derived from medium (`page_range` for both `pdf` and
-`book`). Do not pass it.
+`locator_convention` is derived from medium (`page_range` for `pdf` and
+`book`; a non-blank textual locator for `web`). Do not pass it. A URL is
+provenance/access metadata only: do not fetch, verify, scrape, or attach
+content from it.
 
 ### `source attach`
 
@@ -95,7 +98,8 @@ A locator like `12`, `p. 12`, or `12–14` (en-dash) is invalid.
 
 - `source list` — confirm the source landed; capture its `id` if you lost it.
 - `source update <id>` plus any of `-a`, `-y`, `-t`, `--container-title`,
-  `--publisher`. Medium cannot be changed this way.
+  `--publisher`, or `--url`; use `--clear-url` to remove a stored URL. Medium
+  cannot be changed this way.
 - `source attach <id> -f PATH [-n NAME]` — attach a supplied local file to
   its source (see step 4). `source download <id> [-o DIR]` retrieves it later.
 - `citation list -s/--source-id` — required filter; returns that source only.
@@ -119,9 +123,13 @@ cares about.
 From title page, front matter, running headers, or an explicit citation, collect:
 
 - `medium`: `pdf` if the artifact is a PDF/digital article file; `book` if it
-  is a monograph/book. If neither fits, stop — do not invent a third medium.
+  is a monograph/book; `web` for a web-native page, online text, or browser-
+  accessible textbook. Do not use `web` solely because a book also has an
+  online edition; retain `book` and record its optional URL instead.
 - `authors`, `year`, `title`
 - `container_title` and `publisher` when they are actually present
+- `url` when the researcher supplies or approves a specific HTTP(S) access
+  location. Record it exactly; do not resolve, verify, scrape, or infer it.
 
 If a required field is missing or ambiguous, ask. Do not guess a year, invent
 an author, or "fix" a title.
@@ -139,7 +147,8 @@ python lit_review_cli.py source add \
   -y 2020 \
   -t "Exact title from the material" \
   --container-title "Journal Name" \
-  --publisher "Publisher"
+  --publisher "Publisher" \
+  --url "https://publisher.example/article"
 ```
 
 Save the returned `id`. Later citations need it. If the command prints a
@@ -171,7 +180,9 @@ without naming passages, propose a short list of candidate excerpts and wait.
 
 For each approved passage, record:
 
-- locator as `start-end` digits (`142-144`, or `88-88` for one page)
+- locator as `start-end` digits (`142-144`, or `88-88` for one page) for
+  `pdf` and `book`, or a non-blank textual reference such as `5:1`, `Chapter
+  2`, or `#methods` for `web`
 - excerpt text (quote when they quoted; paraphrase only if they asked)
 - optional `context_note` when the excerpt is unclear out of context
 - optional `title` only if the researcher gives this specific excerpt a
@@ -270,8 +281,11 @@ before any `source add`.
 ## Quality checklist
 
 - Bibliographic fields came from the material or the researcher, never invented.
-- Medium is `pdf` or `book`.
-- Locator is `digits-digits` and matches the page(s) of the excerpt.
+- Medium is `pdf`, `book`, or `web`.
+- Locator is `digits-digits` for `pdf`/`book`, or a non-blank textual
+  reference for `web`.
+- A URL, if recorded, was supplied or approved by the researcher and was not
+  fetched, authenticated, scraped, or treated as a document attachment.
 - Every citation has an approved passage (not an unsolicited full-document dump).
 - A citation title, if set, was supplied or approved by the researcher — never
   invented, and never a copy of the source's title.
