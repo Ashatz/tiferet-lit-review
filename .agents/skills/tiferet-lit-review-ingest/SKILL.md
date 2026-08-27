@@ -8,7 +8,7 @@ description: Capture a source and its citations into the tiferet-lit-review know
 Teach an agent how to turn supplied reading material into live CLI calls.
 This skill covers source, citation, and theme capture — including source
 document attachment/download — as implemented on `v1.x-proto` as of
-`v1.0.0a11`. It does not extract text itself. Abstract composition, Outline
+`v1.0.0a14`. It does not extract text itself. Abstract composition, Outline
 assembly, and Paper drafting are implemented elsewhere in the app, but are
 separate, researcher-initiated workflows outside this skill's scope (see
 § Boundary with later workflows).
@@ -87,6 +87,7 @@ the attached file back out.
 | `-l` / `--locator` | yes | Must match `^\d+-\d+$` (e.g. `12-14` or `12-12` for a single page) |
 | `-e` / `--excerpt` | yes | Quoted or paraphrased passage |
 | `--context-note` | no | Enough surrounding context to stand alone later |
+| `-n` / `--title` | no | A short, researcher-authored label for *this citation* — not the source's title. Only set it if the researcher supplies or approves one; do not invent one from the excerpt. |
 
 A locator like `12`, `p. 12`, or `12–14` (en-dash) is invalid.
 
@@ -98,7 +99,8 @@ A locator like `12`, `p. 12`, or `12–14` (en-dash) is invalid.
 - `source attach <id> -f PATH [-n NAME]` — attach a supplied local file to
   its source (see step 4). `source download <id> [-o DIR]` retrieves it later.
 - `citation list -s/--source-id` — required filter; returns that source only.
-- `citation update <id>` plus any of `-l`, `-e`, `--context-note`.
+- `citation update <id>` plus any of `-l`, `-e`, `--context-note`, `-n`/`--title`,
+  or `--clear-title` (clears an existing title without touching other fields).
 
 Theme commands live in `tiferet-lit-review-theme`. After capture, offer
 linking; do not apply a theme without confirmation.
@@ -172,6 +174,9 @@ For each approved passage, record:
 - locator as `start-end` digits (`142-144`, or `88-88` for one page)
 - excerpt text (quote when they quoted; paraphrase only if they asked)
 - optional `context_note` when the excerpt is unclear out of context
+- optional `title` only if the researcher gives this specific excerpt a
+  short label of its own — never derive one from the excerpt or the
+  source's title yourself
 
 ### 6. Capture citations
 
@@ -268,6 +273,8 @@ before any `source add`.
 - Medium is `pdf` or `book`.
 - Locator is `digits-digits` and matches the page(s) of the excerpt.
 - Every citation has an approved passage (not an unsolicited full-document dump).
+- A citation title, if set, was supplied or approved by the researcher — never
+  invented, and never a copy of the source's title.
 - Existing sources were reused when the same work was already in the store.
 - No theme link ran without confirmation.
 - Default `theme link` was used unless the researcher asked to synthesize.
