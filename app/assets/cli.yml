@@ -95,6 +95,9 @@ cli:
           - name_or_flags: ["--context-note"]
             required: false
             description: "An optional note describing the excerpt's surrounding context."
+          - name_or_flags: ["-n", "--title"]
+            required: false
+            description: "An optional short label for this citation."
       list:
         name: List Citations
         key: list
@@ -119,6 +122,13 @@ cli:
           - name_or_flags: ["--context-note"]
             required: false
             description: "The updated surrounding-context note."
+          - name_or_flags: ["-n", "--title"]
+            required: false
+            description: "The updated citation title."
+          - name_or_flags: ["--clear-title"]
+            type: bool
+            required: false
+            description: "Clear the citation title."
       render:
         name: Render Citation
         key: render
