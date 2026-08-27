@@ -6,7 +6,7 @@ description: Create themes, link existing citations to them, write or re-synthes
 # Themes in tiferet-lit-review
 
 The theme, not the source, is the unit of intellectual work. This skill
-covers the implemented theme surface on `v1.x-proto` as of `v1.0.0a11`.
+covers the implemented theme surface on `v1.x-proto` as of `v1.0.0a13`.
 Outline assembly and Paper composition are implemented elsewhere in the app
 (see § Boundary with later workflows); this skill organizes already-captured
 evidence into themes and does not assemble an Outline or open/draft a Paper
@@ -33,18 +33,23 @@ python lit_review_cli.py theme <command> [flags]
 | Command | Flags | What it does |
 |---|---|---|
 | `theme add` | `-n` / `--name` (required) | Create a theme. `id` is a slug of the name, or a UUID if that slug already exists. Synthesis starts empty. |
-| `theme list` | none | List themes (name, id, linkage_count, current description). |
-| `theme link` | `-c` / `--citation-id`, `-t` / `--theme-id`, optional `-s` / `--include-synthesis` | Attach a citation. Default is structural only: new linkage + `linkage_count`, description unchanged. `-s` also re-synthesizes from the **full** linkage set. Re-linking the same pair is idempotent (no second row, no re-synth). |
+| `theme list` | none | List themes (name, id, linkage_count, retired_linkage_count, current description). |
+| `theme link` | `-c` / `--citation-id`, `-t` / `--theme-id`, optional `-s` / `--include-synthesis` | Attach a citation. Default is structural only: new linkage + `linkage_count`, description unchanged. `-s` also re-synthesizes from the **active** linkage set. Re-linking the same pair is idempotent (no second row, no count change), but `-s` on an existing pair still re-synthesizes from the current active set. |
 | `theme update` | positional `id`, optional `-n` / `--name`, `-d` / `--description` | Editorial write. `-d` sets `synthesized_description` to the exact text, including with zero citations. |
-| `theme synthesize` | positional `id` | Reload all linked citations and run the injected synthesizer. |
-| `theme show` | positional `id` | Print the current description plus each linked citation's raw excerpt (not APA). |
+| `theme synthesize` | positional `id` | Reload the theme's active linkages and run the injected synthesizer. |
+| `theme retire` | `-c` / `--citation-id`, `-t` / `--theme-id`, optional `-r` / `--reason` | Retire a linkage: excluded from synthesis and the default show view, but never deleted. Idempotent (re-retiring does not restamp). |
+| `theme reinstate` | `-c` / `--citation-id`, `-t` / `--theme-id` | Return a retired linkage to active. Idempotent on an already-active linkage. |
+| `theme show` | positional `id`, optional `--include-retired` | Print the description plus each **active** linked citation's raw excerpt (not APA). `--include-retired` additionally lists retired linkages with their retirement timestamp and reason. |
 
 Errors you may see:
 
 - `THEME_NOT_FOUND` — bad theme id
 - `CITATION_NOT_FOUND` — bad citation id
+- `LINKAGE_NOT_FOUND` — no linkage exists between the named citation and theme (`theme retire` / `theme reinstate`)
 
-There is no `theme unlink` at v1. Do not invent it.
+There is no hard-delete `theme unlink` at v1 — `theme retire` is the
+unlinking mechanism, and it is reversible via `theme reinstate`. Retirement
+is always a researcher-confirmed act; never infer it from context.
 
 ## How synthesis works today
 
@@ -52,8 +57,9 @@ Linking is a cheap structural fact. It does **not** rewrite
 `synthesized_description` unless the researcher opts in with
 `--include-synthesis`.
 
-`theme synthesize` (and opt-in link) reloads every citation already linked
-to the theme, then calls the injected `ThemeSynthesisService`. The shipped
+`theme synthesize` (and opt-in link) reloads every **active** citation
+linked to the theme, then calls the injected `ThemeSynthesisService`. A
+retired linkage's excerpt never reaches the synthesizer. The shipped
 implementation (`NaiveThemeSynthesizer`) concatenates up to 10 lines of
 `Author (Year): excerpt`, most-recently-linked first.
 
@@ -149,7 +155,9 @@ scope:
 
 Still not available at v1:
 
-- Unlinking or re-scoping a linkage (no `theme unlink`)
+- Hard deletion of a linkage (retirement is reversible state, not erasure)
+- Typed supersession (recording that citation X displaced citation Y)
+- Retirement of an `AbstractTheme` join (a known, deliberately deferred gap)
 
 `citation render` is implemented. Use it when the user asks for APA; it is
 not required to create or link a theme.
@@ -191,5 +199,7 @@ Re-running the first `theme link` must not increase `linkage_count`.
 - Default `theme link` was used unless the researcher asked to synthesize.
 - Curated text went through `theme update -d`, not a silent synthesizer run.
 - `theme show` was used after linking so the researcher sees the result.
-- No unlink command was invented, and no Outline/Paper composition was
-  performed from this skill.
+- A linkage was retired only on explicit researcher confirmation, never
+  inferred from context (e.g. "this source seems outdated").
+- `theme retire` was used instead of inventing a hard-delete unlink, and no
+  Outline/Paper composition was performed from this skill.

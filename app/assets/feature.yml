@@ -84,6 +84,16 @@ features:
       steps:
         - name: Synthesize Theme
           service_id: resynthesize_theme_event
+    retire:
+      name: Retire Linkage
+      steps:
+        - name: Retire Linkage
+          service_id: retire_linkage_event
+    reinstate:
+      name: Reinstate Linkage
+      steps:
+        - name: Reinstate Linkage
+          service_id: reinstate_linkage_event
     show:
       name: Show Theme
       steps:

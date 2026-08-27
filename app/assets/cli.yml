@@ -177,6 +177,31 @@ cli:
         args:
           - name_or_flags: ["id"]
             description: "The theme identifier to re-synthesize."
+      retire:
+        name: Retire Linkage
+        key: retire
+        group_key: theme
+        args:
+          - name_or_flags: ["-c", "--citation-id"]
+            required: true
+            description: "The citation identifier whose linkage to retire."
+          - name_or_flags: ["-t", "--theme-id"]
+            required: true
+            description: "The theme identifier whose linkage to retire."
+          - name_or_flags: ["-r", "--reason"]
+            required: false
+            description: "Optional free-text reason for the retirement."
+      reinstate:
+        name: Reinstate Linkage
+        key: reinstate
+        group_key: theme
+        args:
+          - name_or_flags: ["-c", "--citation-id"]
+            required: true
+            description: "The citation identifier whose linkage to reinstate."
+          - name_or_flags: ["-t", "--theme-id"]
+            required: true
+            description: "The theme identifier whose linkage to reinstate."
       show:
         name: Show Theme
         key: show
@@ -184,6 +209,10 @@ cli:
         args:
           - name_or_flags: ["id"]
             description: "The theme identifier to show."
+          - name_or_flags: ["--include-retired"]
+            type: bool
+            required: false
+            description: "Also list retired linkages with their retirement timestamp and reason."
     abstract:
       add:
         name: Add Abstract

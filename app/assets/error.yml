@@ -29,6 +29,11 @@ errors:
     message:
       - lang: en_US
         text: "Theme not found: {id}."
+  LINKAGE_NOT_FOUND:
+    name: Linkage Not Found
+    message:
+      - lang: en_US
+        text: "Linkage not found between citation {citation_id} and theme {theme_id}."
   ABSTRACT_NOT_FOUND:
     name: Abstract Not Found
     message:

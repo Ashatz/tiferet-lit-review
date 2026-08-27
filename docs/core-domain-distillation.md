@@ -126,9 +126,19 @@ incrementing the theme's linkage count without destructively overwriting any
 existing narrative description. A citation may hold linkages to more than one
 theme.
 
+A linkage is **active** or **retired**. Retiring a linkage says that the
+evidence was once load-bearing for this theme and has since been displaced —
+typically because better-grounded sources arrived and made the original
+redundant. A retired linkage is excluded from synthesis and from the default
+evidence view, but it is not deleted: a linkage that was superseded is a
+different fact than a linkage that was never formed, and this domain keeps
+both. Retirement is reversible (**reinstatement**), because it is an editorial
+judgment rather than a correction. Retiring a linkage created *in error* — as
+opposed to one that was displaced — is a different act and is not modeled yet.
+
 **Synthesis** — the evaluative act of generating or revising a standing
-description against a full related set. For a theme, that set is its linked
-citations; for an abstract, that set is its linked themes. Can be performed
+description against a full related set. For a theme, that set is its **active**
+linked citations; for an abstract, that set is its linked themes. Can be performed
 manually (curated editorial synthesis), invoked on demand, or requested at
 link time via an opt-in flag. Theme synthesis and abstract synthesis are the
 same *kind* of act and **different services** — they do not share one
@@ -194,7 +204,9 @@ a paper is published, that appearance can become a Source.
 
 **Provenance** — the unbroken path from drafted paper-section content back
 through its themes and citations to sources, and from an outline slot the
-same way.
+same way. Retired linkages stay on that path: they no longer feed synthesis,
+but they still resolve to a real citation and a real source, so the record of
+what once supported a theme survives.
 
 ## 4. What the domain reads / operates on
 
@@ -231,10 +243,9 @@ citation or a theme *is*; both change how existing citations and themes are
 Each behavior below is a bounded step, described as a candidate domain event in
 the Tiferet sense — a unit with a clear input and output, dependencies
 supplied by injection, and an `execute(**kwargs)` entry point
-(`tiferet/events/settings.py`). Capture, cite, theme link/synthesize, render,
-source-document attach, and abstract already exist on `v1.x-proto`. Outline
-is landing in this slice. Paper does not. Naming those steps here is what
-makes Section 10 concrete.
+(`tiferet/events/settings.py`). Capture, cite, theme link/retire/synthesize,
+render, source-document attach, abstract, outline, and paper already exist on
+`v1.x-proto`. Naming those steps here is what makes Section 10 concrete.
 
 ### 5.1 Capturing a source
 
@@ -290,9 +301,10 @@ is uniform no matter the source medium. **Variable** only in that the locator's
 internal shape (a page range, eventually something else) traces back to the
 source-medium axis established when the source was captured.
 
-### 5.4 Linking a citation to a theme
+### 5.4 Linking, retiring, and reinstating a citation–theme linkage
 
-*Attach a citation to one or more themes, establishing a durable evidence relationship.*
+*Attach a citation to one or more themes, establishing a durable evidence
+relationship — and retire that relationship when the evidence is displaced.*
 
 Candidate event: `LinkCitationToTheme`. Linking is a pure structural operation:
 it verifies the citation and theme exist, creates a unique `Linkage` row, and
@@ -302,9 +314,27 @@ overwrite an existing human-crafted thesis summary. When immediate synthesis
 is desired, an opt-in flag (`--include-synthesis`) can trigger the synthesis
 pipeline as part of the link event.
 
-**Fully agnostic** with respect to both axes: linking is identical no matter
-what medium the citation's source came from or what style the eventual paper
-will use.
+Candidate events `RetireLinkage` and `ReinstateLinkage` give that relationship
+a lifecycle. `RetireLinkage` verifies the theme, the citation, and the linkage
+between them, then stamps a retirement time and an optional reason through the
+aggregate. `ReinstateLinkage` clears it. Both are idempotent. Neither deletes a
+row.
+
+Retirement is the mechanism by which a researcher controls what synthesis reads
+without destroying evidence. `linkage_count` therefore counts **active**
+linkages, with retired ones counted separately; synthesis (5.5) loads the active
+set only; and the default evidence view lists active linkages, with retired ones
+available on request. The knowledge base is organized around an argument that
+evolves, so a theme's evidence set must be able to turn over as better-grounded
+sources arrive — but the turnover itself is part of the record.
+
+This mirrors `RemoveOutlineSlotTheme` (5.8), which already treats a structural
+join as revisable. The difference is that arrangement can simply drop a theme,
+whereas evidence carries provenance and must be retired rather than removed.
+
+**Fully agnostic** with respect to both axes: linking, retiring, and
+reinstating are identical no matter what medium the citation's source came from
+or what style the eventual paper will use.
 
 ### 5.5 Synthesizing and updating a theme
 
@@ -446,7 +476,9 @@ order (`app/assets/feature.yml`). The intended composition is:
   a document name (may happen at capture or later).
 - **cite-passage** — pull a citation from an already-captured source.
 - **link-citation** — connect a citation to one or more themes (pure structural linkage).
-- **synthesize-theme** — synthesize or curate a theme's description across its full linkage set (on demand or manual).
+- **retire-linkage** — mark a citation's linkage to a theme as displaced, or
+  reinstate it; excludes the evidence from synthesis without deleting it.
+- **synthesize-theme** — synthesize or curate a theme's description across its full active linkage set (on demand or manual).
 - **compose-abstract** — name an argument brief and join themes into it
   (structural); write or synthesize the body on demand.
 - **render-citation** — format a citation in a requested style, for reuse
@@ -456,9 +488,10 @@ order (`app/assets/feature.yml`). The intended composition is:
 - **open-paper** — create a Paper from an outline; draft each section's
   content and context.
 
-Capture, attach, and cite form the "reading loop." Theme link/synthesize is
-the idea loop. Abstract compose/synthesize is the argument loop. Outline is
-arrangement. Paper is the drafting loop.
+Capture, attach, and cite form the "reading loop." Theme
+link/retire/synthesize is the idea loop — the one loop that is expected to
+turn over as the argument matures. Abstract compose/synthesize is the argument
+loop. Outline is arrangement. Paper is the drafting loop.
 
 ```mermaid
 flowchart LR
@@ -466,7 +499,9 @@ flowchart LR
   SRC --> CITE["Cite a passage<br/>excerpt + locator"]
   ATT --> CITE
   CITE --> LINK["Link to theme(s)<br/>structural association"]
-  LINK --> THEME[("Theme<br/>linkage set")]
+  LINK --> THEME[("Theme<br/>active linkage set")]
+  THEME --> RET["Retire / reinstate linkage<br/>displaced, not deleted"]
+  RET --> THEME
   THEME --> SYNTH["Synthesize theme<br/>curated or on-demand"]
   SYNTH --> THEME
   THEME --> ABS["Compose abstract<br/>unidirectional theme join"]
@@ -498,8 +533,10 @@ each is load-bearing for a specific later behavior:
   citation carries only a locator, not a bibliographic record, so rendering
   always resolves through the source it names.
 - **Citation → Theme** (via linkage) is what makes theme synthesis (5.5)
-  possible: a theme's description is a function of *all* its linkages, not the
-  newest one, so revising a theme requires reading its full linkage set.
+  possible: a theme's description is a function of *all* its active linkages,
+  not the newest one, so revising a theme requires reading its full active
+  linkage set. Retirement (5.4) is what lets that set turn over as the argument
+  matures, without breaking the provenance path back to displaced evidence.
 - **Abstract → Theme** (via AbstractTheme) is what makes abstract synthesis
   (5.6) possible: the brief is a function of the joined themes' current
   descriptions, not of citations directly and not of a blob of ids on the
@@ -532,7 +569,8 @@ Stated plainly, so that implementation work can be scoped against it:
 - Recording a citation's excerpt and locator reference.
 - Attaching, naming, and retrieving a source document (one optional body per
   source).
-- Forming a linkage between a citation and a theme.
+- Forming a linkage between a citation and a theme, and retiring or
+  reinstating that linkage.
 - Forming a unidirectional AbstractTheme join.
 - The mechanism of theme synthesis and of abstract synthesis (each a
   description given a related set). The *services* stay separate.
@@ -597,6 +635,16 @@ separated from day one:
   argument-level noun.
 - Adding tags beside themes would introduce a second, weaker classification
   the vision already rejected.
+- Hard-deleting a linkage instead of retiring it would erase the fact that a
+  source was once load-bearing for a theme, breaking provenance for exactly
+  the citations whose displacement is most worth knowing about.
+- Treating retirement as a correction — collapsing "this evidence was
+  displaced" and "this linkage was a mistake" into one act — would make the
+  record unable to distinguish an argument that matured from one that was
+  wrong.
+- Making retirement a one-way door would push researchers toward re-linking as
+  a workaround, which would restate a revised judgment as a brand-new one and
+  lose the history the retirement was meant to keep.
 
 Naming these now is what the first implementation slice (Section 10) should
 be built to avoid.
@@ -606,7 +654,8 @@ be built to avoid.
 **Inside the domain:** capturing sources and their bibliographic records
 (including SourceAuthor names copied from the work), attaching and naming a
 source document, retrieving that named body, recording citations with their
-locators, forming and refining linkages between citations and themes,
+locators, forming and refining linkages between citations and themes
+(including retiring a displaced linkage and reinstating it),
 composing an abstract from a selection of themes, rendering citations in a
 requested style, assembling an outline of named slots, and opening a Paper
 whose sections hold drafted content, context, and theme membership.
@@ -649,6 +698,12 @@ Items 1–4 below already exist on `v1.x-proto`. What remains:
 8. **Paper.** Landed (`v1.0.0a10` pending): manuscript aggregate forked from
    an outline; section content + context; Paper Abstract and Paper Citations
    owned through `PaperAggregate`. Publication is later still.
+9. **Linkage retirement.** Landed: `RetireLinkage` / `ReinstateLinkage`,
+   active vs. retired linkage counts, and synthesis over the active set only.
+   **Not yet modeled:** hard deletion of a linkage, typed supersession
+   (recording that citation X displaced citation Y), and retirement of an
+   `AbstractTheme` join — each deliberately excluded from this pass and open
+   for a future RFP.
 
 Each remaining item is a candidate for its own RFP. Together they are the
 difference between a set of ideas about how a literature review knowledge
