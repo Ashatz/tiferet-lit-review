@@ -62,6 +62,8 @@ class AddSource(SourceEvent):
             title: str,
             container_title: Optional[str] = None,
             publisher: Optional[str] = None,
+            source_url: Optional[str] = None,
+            url: Optional[str] = None,
             **kwargs,
         ) -> SourceAggregate:
         '''
@@ -79,6 +81,10 @@ class AddSource(SourceEvent):
         :type container_title: Optional[str]
         :param publisher: The source publisher, where applicable.
         :type publisher: Optional[str]
+        :param source_url: The optional programmatic source URL.
+        :type source_url: Optional[str]
+        :param url: The optional CLI source URL alias.
+        :type url: Optional[str]
         :param kwargs: Additional keyword arguments.
         :type kwargs: dict
         :return: The created source aggregate.
@@ -91,6 +97,8 @@ class AddSource(SourceEvent):
             SOURCE_AUTHOR_REQUIRED_ID,
             message='A source requires at least one author.',
         )
+        # Prefer the programmatic field while accepting the CLI alias directly.
+        resolved_source_url = source_url if source_url is not None else url
 
         # Create the source aggregate; the medium/locator_convention validator
         # on Source itself enforces the declared medium set.
@@ -100,6 +108,7 @@ class AddSource(SourceEvent):
             title=title,
             container_title=container_title,
             publisher=publisher,
+            source_url=resolved_source_url,
         )
 
         # Copy each printed name onto the source through the aggregate lifecycle.
@@ -179,6 +188,10 @@ class UpdateSource(SourceEvent):
             title: Optional[str] = None,
             container_title: Optional[str] = None,
             publisher: Optional[str] = None,
+            source_url: Optional[str] = None,
+            url: Optional[str] = None,
+            clear_source_url: bool = False,
+            clear_url: bool = False,
             **kwargs,
         ) -> SourceAggregate:
         '''
@@ -196,6 +209,14 @@ class UpdateSource(SourceEvent):
         :type container_title: Optional[str]
         :param publisher: The updated publisher, if provided.
         :type publisher: Optional[str]
+        :param source_url: The optional programmatic source URL replacement.
+        :type source_url: Optional[str]
+        :param url: The optional CLI source URL replacement.
+        :type url: Optional[str]
+        :param clear_source_url: When True, remove the source URL.
+        :type clear_source_url: bool
+        :param clear_url: The CLI alias for clear_source_url.
+        :type clear_url: bool
         :param kwargs: Additional keyword arguments.
         :type kwargs: dict
         :return: The updated source aggregate.
@@ -218,6 +239,10 @@ class UpdateSource(SourceEvent):
                 SOURCE_AUTHOR_REQUIRED_ID,
                 message='A source requires at least one author.',
             )
+        # Prefer the programmatic field; blank aliases mean no requested update.
+        resolved_source_url = source_url if source_url is not None else url
+        if resolved_source_url is not None and not resolved_source_url.strip():
+            resolved_source_url = None
 
         # Apply the requested bibliographic mutations.
         source.update_record(
@@ -226,6 +251,8 @@ class UpdateSource(SourceEvent):
             title=title,
             container_title=container_title,
             publisher=publisher,
+            source_url=resolved_source_url,
+            clear_source_url=clear_source_url or clear_url,
         )
         self.source_service.save(source)
 

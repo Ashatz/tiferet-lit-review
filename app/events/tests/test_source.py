@@ -12,13 +12,20 @@ from unittest import mock
 # ** app
 from tiferet import DomainEvent
 from tiferet.assets import TiferetError
+from app.domain.source import (
+    PAGE_RANGE_LOCATOR_CONVENTION,
+    WEB_LOCATOR_CONVENTION,
+    is_valid_locator,
+)
 
 from app.events.source import (
     SOURCE_DOCUMENT_NOT_FOUND_ID,
     SOURCE_NOT_FOUND_ID,
+    AddSource,
     AttachSourceDocument,
     DownloadSourceDocument,
     GetSourceDocument,
+    UpdateSource,
 )
 from app.interfaces.file import DocumentFileService
 from app.interfaces.source import SourceService
@@ -61,7 +68,6 @@ def multi_author_source() -> SourceAggregate:
     source.add_author('Amini, M.')
     return source
 
-
 # ** fixture: single_author_source
 @pytest.fixture
 def single_author_source() -> SourceAggregate:
@@ -82,7 +88,6 @@ def single_author_source() -> SourceAggregate:
     source.add_author('Tan, Z.')
     return source
 
-
 # ** fixture: attached_source
 @pytest.fixture
 def attached_source(multi_author_source) -> SourceAggregate:
@@ -100,7 +105,6 @@ def attached_source(multi_author_source) -> SourceAggregate:
         multi_author_source.derive_document_name(path=UPLOAD_PATH)
     )
     return multi_author_source
-
 
 # ** fixture: attach_dependencies
 @pytest.fixture
@@ -128,7 +132,6 @@ def attach_dependencies(multi_author_source) -> dict:
         'document_file_service': document_file_service,
     }
 
-
 # *** tests
 
 # ** test: test_derive_document_name_includes_et_al_for_multiple_authors
@@ -150,7 +153,6 @@ def test_derive_document_name_includes_et_al_for_multiple_authors(
     assert name.endswith('.pdf')
     assert 'mlir' in name
 
-
 # ** test: test_derive_document_name_omits_et_al_for_single_author
 def test_derive_document_name_omits_et_al_for_single_author(
         single_author_source,
@@ -169,7 +171,6 @@ def test_derive_document_name_omits_et_al_for_single_author(
     assert name.startswith('tan_2024_')
     assert '_et_al_' not in name
     assert name.endswith('.pdf')
-
 
 # ** test: test_attach_source_document_derives_name_and_stores_bytes
 def test_attach_source_document_derives_name_and_stores_bytes(
@@ -209,7 +210,6 @@ def test_attach_source_document_derives_name_and_stores_bytes(
     assert result.document_name.startswith('lattner_et_al_2020_')
     assert result.document_name.endswith('.pdf')
 
-
 # ** test: test_attach_source_document_uses_supplied_name
 def test_attach_source_document_uses_supplied_name(
         multi_author_source,
@@ -236,7 +236,6 @@ def test_attach_source_document_uses_supplied_name(
     # The stored name is the override, not the derived bibliographic slug.
     assert result.document_name == CUSTOM_DOCUMENT_NAME
     attach_dependencies['source_service'].save_document.assert_called_once()
-
 
 # ** test: test_attach_source_document_missing_source
 def test_attach_source_document_missing_source():
@@ -265,7 +264,6 @@ def test_attach_source_document_missing_source():
     assert exc_info.value.error_code == SOURCE_NOT_FOUND_ID
     document_file_service.read_bytes.assert_not_called()
     source_service.save_document.assert_not_called()
-
 
 # ** test: test_attach_source_document_replaces_existing_array
 def test_attach_source_document_replaces_existing_array(
@@ -303,7 +301,6 @@ def test_attach_source_document_replaces_existing_array(
     )
     assert result.document_name == CUSTOM_DOCUMENT_NAME
 
-
 # ** test: test_get_source_document_returns_bytes_and_name
 def test_get_source_document_returns_bytes_and_name(attached_source):
     '''
@@ -331,7 +328,6 @@ def test_get_source_document_returns_bytes_and_name(attached_source):
     assert result.document_name == attached_source.document_name
     assert result.content == DOCUMENT_BYTES
 
-
 # ** test: test_get_source_document_missing_attachment
 def test_get_source_document_missing_attachment(multi_author_source):
     '''
@@ -356,7 +352,6 @@ def test_get_source_document_missing_attachment(multi_author_source):
 
     # Assert the structured missing-document error.
     assert exc_info.value.error_code == SOURCE_DOCUMENT_NOT_FOUND_ID
-
 
 # ** test: test_download_source_document_writes_api_name
 def test_download_source_document_writes_api_name(
@@ -398,7 +393,6 @@ def test_download_source_document_writes_api_name(
     assert result.document_name == attached_source.document_name
     assert result.document_name != '2002.11054v2.pdf'
 
-
 # ** test: test_download_source_document_missing_attachment
 def test_download_source_document_missing_attachment(multi_author_source):
     '''
@@ -428,3 +422,130 @@ def test_download_source_document_missing_attachment(multi_author_source):
     # Assert no file was written.
     assert exc_info.value.error_code == SOURCE_DOCUMENT_NOT_FOUND_ID
     document_file_service.write_bytes.assert_not_called()
+
+# ** test: test_add_web_source_accepts_cli_url_alias
+def test_add_web_source_accepts_cli_url_alias():
+    '''
+    AddSource accepts the optional raw CLI URL without any network access.
+    '''
+
+    # Mock persistence while exercising the complete source-domain validation.
+    source_service = mock.Mock(spec=SourceService)
+
+    # Capture a web-native source with a canonical online location.
+    result = DomainEvent.handle(
+        AddSource,
+        dependencies={'source_service': source_service},
+        source_medium='web',
+        authors=['Example, A.'],
+        year=2026,
+        title='An Online Reading',
+        url='https://example.com/reading/module-5#section-1',
+    )
+
+    # The URL round-trips unchanged and web sources use the flexible locator.
+    assert result.source_url == 'https://example.com/reading/module-5#section-1'
+    assert result.locator_convention == 'web_locator'
+    source_service.save.assert_called_once_with(result)
+
+# ** test: test_web_locator_accepts_canonical_text_reference
+def test_web_locator_accepts_canonical_text_reference():
+    '''
+    Web locators support textual references while page ranges retain their rule.
+    '''
+
+    # A module-and-section reference is valid for the web medium only.
+    assert is_valid_locator(WEB_LOCATOR_CONVENTION, '5.1') is True
+    assert is_valid_locator(PAGE_RANGE_LOCATOR_CONVENTION, '5.1') is False
+
+# ** test: test_source_url_validation_is_local_and_syntactic
+@pytest.mark.parametrize(
+    'source_url',
+    [
+        'https://example.com/reading',
+        'http://textbook.example.edu/chapter/1#section-2',
+    ],
+)
+def test_source_url_validation_is_local_and_syntactic(source_url):
+    '''
+    HTTP(S) URLs with hosts are accepted without resolving any remote service.
+
+    :param source_url: A syntactically valid source URL.
+    :type source_url: str
+    '''
+
+    # Construction validates only local URL structure.
+    source = SourceAggregate(
+        medium='web',
+        year=2026,
+        title='Online Text',
+        source_url=source_url,
+    )
+
+    # The exact accepted value is preserved as provenance metadata.
+    assert source.source_url == source_url
+
+# ** test: test_source_url_validation_rejects_invalid_values
+@pytest.mark.parametrize(
+    'source_url',
+    [
+        'example.com/reading',
+        'ftp://example.com/reading',
+        'https://',
+        ' https://example.com/reading',
+        'https://example.com/reading here',
+    ],
+)
+def test_source_url_validation_rejects_invalid_values(source_url):
+    '''
+    Invalid source URL syntax fails before any source can be persisted.
+
+    :param source_url: An invalid source URL.
+    :type source_url: str
+    '''
+
+    # Domain construction rejects unsupported or malformed local URL shapes.
+    with pytest.raises(ValueError):
+        SourceAggregate(
+            medium='web',
+            year=2026,
+            title='Online Text',
+            source_url=source_url,
+        )
+
+# ** test: test_update_source_replaces_and_clears_cli_url_alias
+def test_update_source_replaces_and_clears_cli_url_alias():
+    '''
+    UpdateSource distinguishes a CLI URL replacement from explicit removal.
+    '''
+
+    # Build a source with the URL an update will replace.
+    source = SourceAggregate(
+        id=SOURCE_ID,
+        medium='book',
+        year=2026,
+        title='Online Edition',
+        source_url='https://example.com/original',
+    )
+    source.add_author('Example, A.')
+    source_service = mock.Mock(spec=SourceService)
+    source_service.get.return_value = source
+
+    # Replace through the raw CLI alias, then clear through its explicit flag.
+    DomainEvent.handle(
+        UpdateSource,
+        dependencies={'source_service': source_service},
+        id=SOURCE_ID,
+        url='https://example.com/revised',
+    )
+    assert source.source_url == 'https://example.com/revised'
+    DomainEvent.handle(
+        UpdateSource,
+        dependencies={'source_service': source_service},
+        id=SOURCE_ID,
+        clear_url=True,
+    )
+
+    # Explicit clear removes only the optional provenance location.
+    assert source.source_url is None
+    assert source.title == 'Online Edition'

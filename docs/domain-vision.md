@@ -62,10 +62,12 @@ page or slide, compare two PDFs or decks, or hand an agent the text a locator
 is supposed to point at. A source also needs one place to record a researcher's
 overall note about the work — its scope, thesis, relevance, or provenance —
 without mistaking that document-level judgment for the context of one passage
-or the argument-level Abstract. When a source has an associated file, this
-knowledge base keeps that body with the source and gives it a stable download
-name — so the file comes back as *this* work, not as whatever the upload was
-called on disk.
+or the argument-level Abstract. An optional source URL can additionally record
+the online edition or canonical access location the researcher used; it does
+not prove that the link is live or retrieve anything from it. When a source
+has an associated file, this knowledge base keeps that body with the source
+and gives it a stable download name — so the file comes back as *this* work,
+not as whatever the upload was called on disk.
 
 ### An argument you can state before you outline
 A theme says what the literature says about one idea. An **abstract** says
@@ -115,7 +117,7 @@ source you read for one project keeps paying off in the next.
 
 Everything in this domain follows one path:
 
-> **Capture** a source → **attach** its document when you have the file →
+> **Capture** a source (and optionally record its URL) → **attach** its document when you have the file →
 > **cite** a passage from it → **link** the citation to one or more themes →
 > **synthesize** the theme's meaning (curated or on demand) → **compose** an
 > abstract from a selection of themes → **render** citations in the paper's

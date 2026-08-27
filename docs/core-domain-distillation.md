@@ -40,7 +40,7 @@ idea that other passages, from other works, also belong to.
 
 The domain has exactly one shape:
 
-> **Capture** a source → **attach** its document when the file is on hand →
+> **Capture** a source (and optionally record its URL) → **attach** its document when the file is on hand →
 > **cite** a passage from it → **link** the citation to a theme →
 > **synthesize** the theme's description (curated or on demand) → **compose**
 > an abstract from a selection of themes → **render** the citation in the
@@ -70,16 +70,24 @@ about this domain, and Section 8 treats it directly.
 
 ## 3. Ubiquitous language
 
-**Source** — a work being read: a PDF, a book, a presentation, or another
-medium added later. Carries a bibliographic record, an optional researcher
-overview note about that work as a whole, and, when the researcher has the
-file, a named source document. The overview and document are optional; the
-bibliographic record is not.
+**Source** — a work being read: a PDF, a book, a presentation, a web text, or
+another medium added later. Carries a bibliographic record, an optional
+researcher overview note about that work as a whole, an optional source URL
+naming the online edition or access location the researcher used, and, when
+the researcher has the file, a named source document. Overview note, source
+URL, and document are each independent and optional; the bibliographic record
+is not.
 
 **Overview note** — an optional researcher-authored note about one Source as a
 whole: its scope, thesis, relevance, or provenance. It is available for every
 source medium. It is not a Citation's passage-specific context note and not an
 Abstract, which states an argument across selected themes.
+
+**Source URL** — the optional absolute HTTP(S) location a researcher records
+for a Source or its online edition. It is provenance/access metadata, not a
+claim that the location is currently reachable or authentic. Capture validates
+its syntax locally and never resolves, fetches, redirects, scrapes, or archives
+it. The URL can be recorded for any source medium.
 
 **Source document** — the optional body of a source: the bytes of the work
 itself, held with that source and no other. It has no identity of its own.
@@ -243,8 +251,14 @@ What is captured, per source medium:
 
 - **PDF or book (today):** SourceAuthors (names as printed), year, title, and
   publisher-family fields, plus a page-range locator for each citation drawn
-  from it. The CLI may accept those names as strings; `AddSource` copies each
-  one onto the source through `SourceAggregate.add_author`.
+  from it. An optional source URL can name the publisher or online edition. The
+  CLI may accept those names as strings; `AddSource` copies each one onto the
+  source through `SourceAggregate.add_author`.
+- **Web:** the same bibliographic record, plus an optional source URL. Its
+  locator is a non-blank textual reference such as a chapter, section, verse,
+  heading, fragment, or page-like position — for example, an open online
+  textbook's module reference (`5.1`) or a web article's heading anchor. It is
+  not forced into a page-range convention.
 - **Presentation (specified, not yet implemented: RFP-12 / issue #30):** the
   same Source bibliographic record and optional overview note, plus a
   slide-range locator for each selectively captured citation. A presentation
@@ -778,6 +792,13 @@ Items 1–4 below already exist on `v1.x-proto`. What remains:
     note. APA renders slide locators distinctly from page locators. **Not yet
     modeled:** a `Presentation` aggregate, slide inventory, deck parsing, or
     automatic slide extraction.
+13. **Source URL and web medium.** Landed: every Source may carry an optional,
+    locally-validated absolute HTTP(S) `source_url` naming an online edition or
+    access location; `web` is a new source medium mapped to a non-blank
+    textual `web_locator` convention (e.g. a module/section reference like
+    `5.1`), independent of page-range validation for `pdf`/`book`. **Not yet
+    modeled:** multiple URLs or editions per source, and a dedicated
+    `religious_text` medium with stronger canonical locator semantics.
 
 Each remaining item is a candidate for its own RFP. Together they are the
 difference between a set of ideas about how a literature review knowledge

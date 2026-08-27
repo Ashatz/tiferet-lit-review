@@ -56,9 +56,11 @@ class SourceAggregate(Source, Aggregate):
             title: Optional[str] = None,
             container_title: Optional[str] = None,
             publisher: Optional[str] = None,
+            source_url: Optional[str] = None,
             *,
             clear_container_title: bool = False,
             clear_publisher: bool = False,
+            clear_source_url: bool = False,
         ) -> None:
         '''
         Update mutable bibliographic fields on the source.
@@ -78,10 +80,14 @@ class SourceAggregate(Source, Aggregate):
         :type container_title: Optional[str]
         :param publisher: The updated publisher, if provided.
         :type publisher: Optional[str]
+        :param source_url: The updated source URL, if provided.
+        :type source_url: Optional[str]
         :param clear_container_title: When True, set container_title to None.
         :type clear_container_title: bool
         :param clear_publisher: When True, set publisher to None.
         :type clear_publisher: bool
+        :param clear_source_url: When True, set source_url to None.
+        :type clear_source_url: bool
         '''
 
         # Replace copied authors through the same add-author lifecycle.
@@ -103,6 +109,10 @@ class SourceAggregate(Source, Aggregate):
             self.publisher = None
         elif publisher is not None:
             self.publisher = publisher
+        if clear_source_url:
+            self.source_url = None
+        elif source_url is not None and source_url.strip():
+            self.source_url = source_url
 
 
 # ** mapper: source_node_object

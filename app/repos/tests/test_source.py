@@ -37,7 +37,6 @@ def repo(tmp_path) -> SourceH5Repository:
     # Return a repository pointing at an isolated temp file.
     return SourceH5Repository(h5_file=str(tmp_path / 'lit_review.h5'))
 
-
 # ** fixture: source
 @pytest.fixture
 def source() -> SourceAggregate:
@@ -58,7 +57,6 @@ def source() -> SourceAggregate:
     )
     source.add_author('Lattner, C.')
     return source
-
 
 # *** tests
 
@@ -86,7 +84,6 @@ def test_save_document_does_not_load_on_get_or_list(repo, source):
     assert repo.has_document(SOURCE_ID) is True
     assert repo.get_document(SOURCE_ID) == FIRST_BYTES
 
-
 # ** test_int: test_save_document_replaces_single_array_node
 def test_save_document_replaces_single_array_node(repo, source):
     '''
@@ -110,7 +107,6 @@ def test_save_document_replaces_single_array_node(repo, source):
         child_names = list(group._v_children)
     assert child_names.count(SOURCE_DOCUMENT_NODE_NAME) == 1
 
-
 # ** test_int: test_get_document_missing_returns_none
 def test_get_document_missing_returns_none(repo, source):
     '''
@@ -128,3 +124,46 @@ def test_get_document_missing_returns_none(repo, source):
     # Missing-array reads stay quiet so the event can raise the domain error.
     assert repo.has_document(SOURCE_ID) is False
     assert repo.get_document(SOURCE_ID) is None
+
+# ** test_int: test_source_url_round_trips_and_legacy_source_stays_compatible
+def test_source_url_round_trips_and_legacy_source_stays_compatible(repo):
+    '''
+    Source URLs persist as attributes while legacy source groups load without one.
+
+    :param repo: The temporary source repository.
+    :type repo: SourceH5Repository
+    '''
+
+    # Save a current web source with an optional canonical location.
+    current = SourceAggregate(
+        id='web-source',
+        medium='web',
+        year=2026,
+        title='Online Text',
+        source_url='https://example.com/text#chapter-1',
+    )
+    current.add_author('Example, A.')
+    repo.save(current)
+
+    # Create a pre-URL source group directly with its original attributes.
+    legacy_path = '/lit_review/sources/legacy-source'
+    with repo.client() as h5:
+        h5.create_group(legacy_path)
+        h5.set_node_attr(legacy_path, 'id', 'legacy-source')
+        h5.set_node_attr(legacy_path, 'medium', 'book')
+        h5.set_node_attr(legacy_path, 'authors', ['Legacy, A.'])
+        h5.set_node_attr(legacy_path, 'year', 2020)
+        h5.set_node_attr(legacy_path, 'title', 'Legacy Book')
+
+    # Current URLs survive persistence while an absent legacy attribute is None.
+    assert repo.get('web-source').source_url == 'https://example.com/text#chapter-1'
+    legacy = repo.get('legacy-source')
+    assert legacy.source_url is None
+
+    # Adding a URL to a legacy source retains the rest of its node attributes.
+    legacy.update_record(source_url='https://example.com/legacy')
+    repo.save(legacy)
+    persisted_legacy = repo.get('legacy-source')
+    assert persisted_legacy.source_url == 'https://example.com/legacy'
+    assert persisted_legacy.title == 'Legacy Book'
+    assert persisted_legacy.authors[0].display_name == 'Legacy, A.'
