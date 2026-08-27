@@ -135,7 +135,6 @@ different fact than a linkage that was never formed, and this domain keeps
 both. Retirement is reversible (**reinstatement**), because it is an editorial
 judgment rather than a correction. Retiring a linkage created *in error* — as
 opposed to one that was displaced — is a different act and is not modeled yet.
-*Specified, not yet implemented: RFP-7 / issue #22.*
 
 **Synthesis** — the evaluative act of generating or revising a standing
 description against a full related set. For a theme, that set is its **active**
@@ -244,12 +243,9 @@ citation or a theme *is*; both change how existing citations and themes are
 Each behavior below is a bounded step, described as a candidate domain event in
 the Tiferet sense — a unit with a clear input and output, dependencies
 supplied by injection, and an `execute(**kwargs)` entry point
-(`tiferet/events/settings.py`). Capture, cite, theme link/synthesize, render,
-source-document attach, and abstract already exist on `v1.x-proto`. Outline
-is landing in this slice. Paper does not. Linkage retirement (5.4) is
-specified here ahead of implementation so that later slices are designed
-against it; it is RFP-7 / issue #22. Naming those steps here is what
-makes Section 10 concrete.
+(`tiferet/events/settings.py`). Capture, cite, theme link/retire/synthesize,
+render, source-document attach, abstract, outline, and paper already exist on
+`v1.x-proto`. Naming those steps here is what makes Section 10 concrete.
 
 ### 5.1 Capturing a source
 
@@ -339,9 +335,6 @@ whereas evidence carries provenance and must be retired rather than removed.
 **Fully agnostic** with respect to both axes: linking, retiring, and
 reinstating are identical no matter what medium the citation's source came from
 or what style the eventual paper will use.
-
-*`RetireLinkage` / `ReinstateLinkage` are specified, not yet implemented:
-RFP-7 / issue #22.*
 
 ### 5.5 Synthesizing and updating a theme
 
@@ -705,10 +698,12 @@ Items 1–4 below already exist on `v1.x-proto`. What remains:
 8. **Paper.** Landed (`v1.0.0a10` pending): manuscript aggregate forked from
    an outline; section content + context; Paper Abstract and Paper Citations
    owned through `PaperAggregate`. Publication is later still.
-9. **Linkage retirement.** Specified, not yet implemented (RFP-7, issue #22):
-   `RetireLinkage` / `ReinstateLinkage`, active vs. retired linkage counts, and
-   synthesis over the active set only. Hard deletion, typed supersession, and
-   `AbstractTheme` retirement are deliberately excluded and remain open.
+9. **Linkage retirement.** Landed: `RetireLinkage` / `ReinstateLinkage`,
+   active vs. retired linkage counts, and synthesis over the active set only.
+   **Not yet modeled:** hard deletion of a linkage, typed supersession
+   (recording that citation X displaced citation Y), and retirement of an
+   `AbstractTheme` join — each deliberately excluded from this pass and open
+   for a future RFP.
 
 Each remaining item is a candidate for its own RFP. Together they are the
 difference between a set of ideas about how a literature review knowledge
