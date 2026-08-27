@@ -167,3 +167,48 @@ def test_source_url_round_trips_and_legacy_source_stays_compatible(repo):
     assert persisted_legacy.source_url == 'https://example.com/legacy'
     assert persisted_legacy.title == 'Legacy Book'
     assert persisted_legacy.authors[0].display_name == 'Legacy, A.'
+
+# ** test_int: test_overview_note_round_trips_and_legacy_source_stays_compatible
+def test_overview_note_round_trips_and_legacy_source_stays_compatible(repo):
+    '''
+    Overview notes persist as attributes while legacy source groups load
+    without one (AC #6, #8).
+
+    :param repo: The temporary source repository.
+    :type repo: SourceH5Repository
+    '''
+
+    # Save a current presentation source with an overview note.
+    current = SourceAggregate(
+        id='presentation-source',
+        medium='presentation',
+        year=2024,
+        title='Compiler Infrastructure Overview',
+        overview_note='Surveys the reusable IR ecosystem across backends.',
+    )
+    current.add_author('Example, A.')
+    repo.save(current)
+
+    # Create a pre-overview-note source group directly with original attributes.
+    legacy_path = '/lit_review/sources/legacy-overview-source'
+    with repo.client() as h5:
+        h5.create_group(legacy_path)
+        h5.set_node_attr(legacy_path, 'id', 'legacy-overview-source')
+        h5.set_node_attr(legacy_path, 'medium', 'book')
+        h5.set_node_attr(legacy_path, 'authors', ['Legacy, A.'])
+        h5.set_node_attr(legacy_path, 'year', 2020)
+        h5.set_node_attr(legacy_path, 'title', 'Legacy Book')
+
+    # Current notes survive persistence; an absent legacy attribute is None.
+    assert repo.get('presentation-source').overview_note == \
+        'Surveys the reusable IR ecosystem across backends.'
+    legacy = repo.get('legacy-overview-source')
+    assert legacy.overview_note is None
+
+    # Adding a note to a legacy source retains its other node attributes.
+    legacy.update_record(overview_note='Added after the fact.')
+    repo.save(legacy)
+    persisted_legacy = repo.get('legacy-overview-source')
+    assert persisted_legacy.overview_note == 'Added after the fact.'
+    assert persisted_legacy.title == 'Legacy Book'
+    assert persisted_legacy.authors[0].display_name == 'Legacy, A.'

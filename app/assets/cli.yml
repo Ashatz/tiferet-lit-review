@@ -29,6 +29,9 @@ cli:
           - name_or_flags: ["--url"]
             required: false
             description: "Optional HTTP(S) URL for the source or online edition."
+          - name_or_flags: ["--overview-note"]
+            required: false
+            description: "Optional researcher note about the work as a whole."
       list:
         name: List Sources
         key: list
@@ -64,6 +67,13 @@ cli:
             type: bool
             required: false
             description: "Clear the stored source URL."
+          - name_or_flags: ["--overview-note"]
+            required: false
+            description: "Updated researcher note about the work as a whole."
+          - name_or_flags: ["--clear-overview-note"]
+            type: bool
+            required: false
+            description: "Clear the stored overview note."
       attach:
         name: Attach Source Document
         key: attach

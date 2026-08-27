@@ -19,6 +19,12 @@ from tiferet.domain.core import DomainObject
 # ** constant: page_range_locator_pattern
 PAGE_RANGE_LOCATOR_PATTERN = re.compile(r'^(\d+)-(\d+)$')
 
+# ** constant: slide_range_locator_convention
+# Not imported from app.domain.source: the domain layer does not import
+# across sibling domain modules, so the convention name is duplicated here
+# as the shared string identifier the event layer passes in.
+SLIDE_RANGE_LOCATOR_CONVENTION = 'slide_range'
+
 # ** constant: max_title_bytes
 MAX_TITLE_BYTES = 256
 
@@ -171,3 +177,29 @@ class Citation(DomainObject):
         if match and match.group(1) == match.group(2):
             return match.group(1)
         return self.locator
+
+    # * method: locator_display
+    def locator_display(self, locator_convention: str) -> str:
+        '''
+        Build this citation's medium-appropriate locator display for rendering.
+
+        Adding a new convention only requires a new branch here, selected by
+        the source's declared locator_convention -- never a source.medium
+        branch in RenderCitation.
+
+        :param locator_convention: The parent source's declared locator convention.
+        :type locator_convention: str
+        :return: The formatted locator display (e.g. "p. 9", "Slides 9-11").
+        :rtype: str
+        '''
+
+        # A presentation slide range reads as "Slide N" or "Slides N-M",
+        # never with a page prefix.
+        if locator_convention == SLIDE_RANGE_LOCATOR_CONVENTION:
+            match = PAGE_RANGE_LOCATOR_PATTERN.match(self.locator)
+            if match and match.group(1) != match.group(2):
+                return f'Slides {self.locator}'
+            return f'Slide {self.normalize_locator()}'
+
+        # Every other convention keeps the existing page-prefixed display.
+        return f'p. {self.normalize_locator()}'

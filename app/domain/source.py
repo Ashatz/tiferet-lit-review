@@ -22,6 +22,8 @@ from tiferet.domain.core import DomainObject
 PAGE_RANGE_LOCATOR_CONVENTION = 'page_range'
 # ** constant: web_locator_convention
 WEB_LOCATOR_CONVENTION = 'web_locator'
+# ** constant: slide_range_locator_convention
+SLIDE_RANGE_LOCATOR_CONVENTION = 'slide_range'
 
 # ** constant: document_title_slug_max_length
 DOCUMENT_TITLE_SLUG_MAX_LENGTH = 32
@@ -31,12 +33,14 @@ SOURCE_MEDIUM_LOCATOR_CONVENTIONS: Dict[str, str] = {
     'pdf': PAGE_RANGE_LOCATOR_CONVENTION,
     'book': PAGE_RANGE_LOCATOR_CONVENTION,
     'web': WEB_LOCATOR_CONVENTION,
+    'presentation': SLIDE_RANGE_LOCATOR_CONVENTION,
 }
 
 # ** constant: locator_convention_patterns
 LOCATOR_CONVENTION_PATTERNS: Dict[str, str] = {
     PAGE_RANGE_LOCATOR_CONVENTION: r'^\d+-\d+$',
     WEB_LOCATOR_CONVENTION: r'^\S(?:.*\S)?$',
+    SLIDE_RANGE_LOCATOR_CONVENTION: r'^\d+-\d+$',
 }
 
 # *** functions
@@ -267,11 +271,47 @@ class Source(DomainObject):
         description='The API / download filename when a source document is attached.',
     )
 
+    # * attribute: overview_note
+    overview_note: Optional[str] = Field(
+        default=None,
+        description=(
+            'An optional, medium-agnostic researcher note about the work as '
+            'a whole, distinct from a citation context note or an abstract.'
+        ),
+    )
+
     # * attribute: created_at
     created_at: int = Field(
         default_factory=lambda: int(time()),
         description='The unix creation timestamp (UTC seconds since epoch).',
     )
+    # * method: _normalize_overview_note (validator)
+    @model_validator(mode='before')
+    @classmethod
+    def _normalize_overview_note(cls, values: dict) -> dict:
+        '''
+        Treat a blank or whitespace-only overview note as absent.
+
+        :param values: The raw field values before construction.
+        :type values: dict
+        :return: The updated field values dict.
+        :rtype: dict
+        '''
+
+        # Only inspect a plain values dict carrying a string overview note.
+        if not isinstance(values, dict):
+            return values
+        overview_note = values.get('overview_note')
+        if not isinstance(overview_note, str):
+            return values
+
+        # Blank or whitespace-only input carries no overview note.
+        if not overview_note.strip():
+            values['overview_note'] = None
+
+        # Return the (possibly updated) values.
+        return values
+
     # * method: _validate_source_url (validator)
     @field_validator('source_url')
     @classmethod

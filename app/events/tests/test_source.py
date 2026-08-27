@@ -17,6 +17,7 @@ from tiferet.contexts.request import RequestContext
 from tiferet.repos.feature import FeatureConfigRepository
 from app.domain.source import (
     PAGE_RANGE_LOCATOR_CONVENTION,
+    SLIDE_RANGE_LOCATOR_CONVENTION,
     WEB_LOCATOR_CONVENTION,
     is_valid_locator,
 )
@@ -632,6 +633,135 @@ def test_update_source_replaces_and_clears_cli_url_alias():
     # Explicit clear removes only the optional provenance location.
     assert source.source_url is None
     assert source.title == 'Online Edition'
+
+# ** test: test_add_presentation_source_derives_slide_range_convention
+def test_add_presentation_source_derives_slide_range_convention():
+    '''
+    A presentation source derives the slide_range locator convention (AC #1).
+    '''
+
+    # Mock persistence while exercising the presentation-medium seam.
+    source_service = mock.Mock(spec=SourceService)
+
+    # Capture a presentation source; pdf/book still derive page_range.
+    result = DomainEvent.handle(
+        AddSource,
+        dependencies={'source_service': source_service},
+        source_medium='presentation',
+        authors=['Example, A.'],
+        year=2026,
+        title='A Compiler Infrastructure Deck',
+    )
+
+    # The declared convention is slide_range, distinct from page_range.
+    assert result.locator_convention == SLIDE_RANGE_LOCATOR_CONVENTION
+    source_service.save.assert_called_once_with(result)
+
+# ** test: test_slide_range_accepts_numeric_ranges_like_page_range
+def test_slide_range_accepts_numeric_ranges_like_page_range():
+    '''
+    Slide ranges share page_range's numeric-range grammar (AC #2).
+    '''
+
+    # Equal and unequal numeric ranges are valid; non-numeric text is not.
+    assert is_valid_locator(SLIDE_RANGE_LOCATOR_CONVENTION, '9-9') is True
+    assert is_valid_locator(SLIDE_RANGE_LOCATOR_CONVENTION, '9-11') is True
+    assert is_valid_locator(SLIDE_RANGE_LOCATOR_CONVENTION, 'ix-x') is False
+
+    # Existing page_range validation is unaffected by the new convention.
+    assert is_valid_locator(PAGE_RANGE_LOCATOR_CONVENTION, '9-11') is True
+
+# ** test: test_add_source_stores_overview_note
+def test_add_source_stores_overview_note():
+    '''
+    AddSource persists an optional, medium-agnostic overview note (AC #6).
+    '''
+
+    # Mock persistence while exercising overview-note capture.
+    source_service = mock.Mock(spec=SourceService)
+
+    # Capture a source with a researcher-authored overview note.
+    result = DomainEvent.handle(
+        AddSource,
+        dependencies={'source_service': source_service},
+        source_medium='pdf',
+        authors=['Lattner, C.'],
+        year=2020,
+        title='MLIR: A Compiler Infrastructure',
+        overview_note='Proposes a reusable IR ecosystem for compiler design.',
+    )
+
+    # The exact note is stored.
+    assert result.overview_note == 'Proposes a reusable IR ecosystem for compiler design.'
+
+# ** test: test_add_source_blank_overview_note_becomes_none
+def test_add_source_blank_overview_note_becomes_none():
+    '''
+    A blank or whitespace-only overview note normalizes to absent.
+    '''
+
+    # Mock persistence; omission and blank input both mean no note.
+    source_service = mock.Mock(spec=SourceService)
+
+    # Capture a source with a whitespace-only overview note.
+    result = DomainEvent.handle(
+        AddSource,
+        dependencies={'source_service': source_service},
+        source_medium='pdf',
+        authors=['Lattner, C.'],
+        year=2020,
+        title='MLIR: A Compiler Infrastructure',
+        overview_note='   ',
+    )
+
+    # The blank note normalizes to absent, not an empty string.
+    assert result.overview_note is None
+
+# ** test: test_update_source_replaces_and_clears_overview_note
+def test_update_source_replaces_and_clears_overview_note():
+    '''
+    UpdateSource replaces the overview note, then clears it explicitly (AC #7).
+    '''
+
+    # Build a source with no initial overview note.
+    source = SourceAggregate(
+        id=SOURCE_ID,
+        medium='pdf',
+        year=2020,
+        title='MLIR: A Compiler Infrastructure',
+    )
+    source.add_author('Lattner, C.')
+    source_service = mock.Mock(spec=SourceService)
+    source_service.get.return_value = source
+
+    # Replace the overview note.
+    DomainEvent.handle(
+        UpdateSource,
+        dependencies={'source_service': source_service},
+        id=SOURCE_ID,
+        overview_note='Revised overview.',
+    )
+    assert source.overview_note == 'Revised overview.'
+
+    # An unrelated update leaves the overview note untouched.
+    DomainEvent.handle(
+        UpdateSource,
+        dependencies={'source_service': source_service},
+        id=SOURCE_ID,
+        publisher='LLVM Foundation',
+    )
+    assert source.overview_note == 'Revised overview.'
+    assert source.publisher == 'LLVM Foundation'
+
+    # Explicit clear removes the overview note without touching other fields.
+    DomainEvent.handle(
+        UpdateSource,
+        dependencies={'source_service': source_service},
+        id=SOURCE_ID,
+        clear_overview_note=True,
+    )
+    assert source.overview_note is None
+    assert source.title == 'MLIR: A Compiler Infrastructure'
 
 # ** test: test_attach_feature_omits_name_without_parameter_not_found
 def test_attach_feature_omits_name_without_parameter_not_found():
