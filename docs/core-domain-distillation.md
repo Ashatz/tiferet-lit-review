@@ -259,10 +259,9 @@ What is captured, per source medium:
   heading, fragment, or page-like position — for example, an open online
   textbook's module reference (`5.1`) or a web article's heading anchor. It is
   not forced into a page-range convention.
-- **Presentation (specified, not yet implemented: RFP-12 / issue #30):** the
-  same Source bibliographic record and optional overview note, plus a
-  slide-range locator for each selectively captured citation. A presentation
-  is not a manifest or inventory of every slide.
+- **Presentation:** the same Source bibliographic record and optional
+  overview note, plus a slide-range locator for each selectively captured
+  citation. A presentation is not a manifest or inventory of every slide.
 - **Any future medium** (journal article, web page, dataset, and so on) is
   expected to supply the same two things — a bibliographic record and a
   locator convention appropriate to that medium — without changing anything
@@ -748,58 +747,32 @@ whose sections hold drafted content, context, and theme membership.
 
 ## 10. Where this leads
 
-Items 1–4 below already exist on `v1.x-proto`. What remains:
+This section names the domain gaps that remain against the vision. Each is a
+candidate for its own RFP.
 
-1. **Domain objects for the four core nouns.** Landed: `Source`, `Citation`,
-   `Theme`, and `Linkage`, with the source-medium axis as field variation on
-   `Source`, not separate types.
-2. **The reading-loop events.** Landed: `AddSource`, `AddCitation`, and
-   `LinkCitationToTheme` (structural by default after RFP-3.1).
-3. **Citation style as a declared rulebook.** Landed: APA as data the render
-   event reads, not a branch inside it.
-4. **One citation style as proof.** Landed: APA through `RenderCitation`.
-5. **Source document attachment and retrieve.** Landed (`v1.0.0a7`).
-6. **Abstract composition.** Landed (`v1.0.0a8`).
-7. **Outline assembly.** Arrangement only (issue #6). Named slots with
-   optional themes; incremental add/remove of themes on a slot. Does not
-   create a Paper. No outline synthesizer. Nested slots later.
-8. **Paper.** Landed (`v1.0.0a10` pending): manuscript aggregate forked from
-   an outline; section content + context; Paper Abstract and Paper Citations
-   owned through `PaperAggregate`. Publication is later still.
-9. **Linkage retirement.** Landed: `RetireLinkage` / `ReinstateLinkage`,
-   active vs. retired linkage counts, and synthesis over the active set only.
-   **Not yet modeled:** hard deletion of a linkage, typed supersession
-   (recording that citation X displaced citation Y), and retirement of an
-   `AbstractTheme` join — each deliberately excluded from this pass and open
-   for a future RFP.
-10. **Citation title.** Landed: an optional, researcher-authored label per
-    citation (`Citation.title`), distinct from `Source.title` and never used
-    in citation-style rendering. A blank or whitespace-only value is treated
-    as absent; citations captured before this change rehydrate title-less.
-    **Not yet modeled:** bulk labeling of legacy citations, title-based
-    search or filtering, and any second evidence-classification system beyond
-    this single free-text label.
-11. **Citation text capacity.** Landed: citation excerpts and context notes
-    are retained up to a 16,384-byte UTF-8 capacity and rejected visibly when
-    too large, rather than silently truncated. A safe, width-aware upgrade
-    widens a legacy citations table in place, sharing the same copy-on-write
-    migration seam RFP-8 established. **Not yet modeled:** recovery of text
-    already truncated under the old 4,000-byte limit.
-12. **Presentation sources and overview notes.** Specified, not yet implemented
-    (RFP-12, issue #30): `presentation` maps to a distinct `slide_range`
-    locator convention; citations remain selectively captured evidence, not a
-    slide manifest; and every Source may carry an optional researcher overview
-    note. APA renders slide locators distinctly from page locators. **Not yet
-    modeled:** a `Presentation` aggregate, slide inventory, deck parsing, or
-    automatic slide extraction.
-13. **Source URL and web medium.** Landed: every Source may carry an optional,
-    locally-validated absolute HTTP(S) `source_url` naming an online edition or
-    access location; `web` is a new source medium mapped to a non-blank
-    textual `web_locator` convention (e.g. a module/section reference like
-    `5.1`), independent of page-range validation for `pdf`/`book`. **Not yet
-    modeled:** multiple URLs or editions per source, and a dedicated
-    `religious_text` medium with stronger canonical locator semantics.
+1. **Domain objects for the four core nouns.** No known gaps.
+2. **The reading-loop events.** No known gaps.
+3. **Citation style as a declared rulebook.** No known gaps.
+4. **One citation style as proof.** No known gaps.
+5. **Source document attachment and retrieve.** No known gaps.
+6. **Abstract composition.** No known gaps.
+7. **Outline assembly.** Nested / hierarchical slots are not yet modeled.
+8. **Paper.** Publication (venue, date, DOI) is not yet modeled.
+9. **Linkage retirement.** **Not yet modeled:** hard deletion of a linkage,
+   typed supersession (recording that citation X displaced citation Y), and
+   retirement of an `AbstractTheme` join.
+10. **Citation title.** **Not yet modeled:** bulk labeling of legacy
+    citations, title-based search or filtering, and any second
+    evidence-classification system beyond this single free-text label.
+11. **Citation text capacity.** **Not yet modeled:** recovery of text already
+    truncated under the old 4,000-byte limit.
+12. **Presentation sources and overview notes.** **Not yet modeled:** a
+    `Presentation` aggregate, slide inventory, deck parsing, or automatic
+    slide extraction.
+13. **Source URL and web medium.** **Not yet modeled:** multiple URLs or
+    editions per source, and a dedicated `religious_text` medium with
+    stronger canonical locator semantics.
 
-Each remaining item is a candidate for its own RFP. Together they are the
-difference between a set of ideas about how a literature review knowledge
-base should work and the knowledge base the vision statement describes.
+Together, closing these gaps is the difference between a set of ideas about
+how a literature review knowledge base should work and the knowledge base the
+vision statement describes.
