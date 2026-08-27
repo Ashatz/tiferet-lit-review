@@ -49,10 +49,10 @@ The domain has exactly one shape:
 
 and exactly two axes of variation:
 
-1. **Source medium** — the kind of work being read (PDF, book, journal
-   article, and whatever is added later), which determines what bibliographic
-   fields are expected and what a "locator" (the passage's precise position)
-   means for that medium.
+1. **Source medium** — the kind of work being read (PDF, book, presentation,
+   journal article, and whatever is added later), which determines what
+   bibliographic fields are expected and what a "locator" (the passage's
+   precise position) means for that medium.
 2. **Citation style** — the named formatting convention (APA, MLA, Chicago, or
    another) a given paper requires, which determines how a bibliographic
    record and a locator render into an in-text citation and a reference-list
@@ -70,9 +70,16 @@ about this domain, and Section 8 treats it directly.
 
 ## 3. Ubiquitous language
 
-**Source** — a work being read: a PDF, a book, or another medium added later.
-Carries a bibliographic record and, when the researcher has the file, a named
-source document. The document is optional; the bibliographic record is not.
+**Source** — a work being read: a PDF, a book, a presentation, or another
+medium added later. Carries a bibliographic record, an optional researcher
+overview note about that work as a whole, and, when the researcher has the
+file, a named source document. The overview and document are optional; the
+bibliographic record is not.
+
+**Overview note** — an optional researcher-authored note about one Source as a
+whole: its scope, thesis, relevance, or provenance. It is available for every
+source medium. It is not a Citation's passage-specific context note and not an
+Abstract, which states an argument across selected themes.
 
 **Source document** — the optional body of a source: the bytes of the work
 itself, held with that source and no other. It has no identity of its own.
@@ -108,8 +115,10 @@ person, or looking people up) is out of scope and would be a different bounded
 context.
 
 **Locator** — the precise position of a passage within a source: a page range
-for a PDF or book today, and whatever position concept a future medium
-requires (see Section 4).
+for a PDF or book, a slide range for a presentation, and whatever position
+concept a future medium requires (see Section 4). A locator's stored shape and
+its rendered label follow the Source's declared locator convention; a numeric
+range alone does not imply pages.
 
 **Citation** — an excerpt or paraphrase pulled from a source, together with its
 locator and an optional surrounding-context note that make it intelligible on
@@ -224,11 +233,11 @@ what once supported a theme survives.
 The domain operates on bibliographic data about a source, on citation text
 the researcher (or an agent) has already extracted, and — when attached — on
 the named source document that belongs to that source. It does not parse the
-file. That is a deliberate boundary (Section 9): PDF text extraction, OCR,
-and the mechanics of getting words out of a book are infrastructure the
-domain depends on, not part of it. Asking for "the body of this source" or
-"the bytes at this locator" is domain; turning those bytes into words is
-infrastructure.
+file. That is a deliberate boundary (Section 9): PDF text extraction,
+presentation-deck parsing, OCR, and the mechanics of getting words out of a
+book are infrastructure the domain depends on, not part of it. Asking for "the
+body of this source" or "the bytes at this locator" is domain; turning those
+bytes into words is infrastructure.
 
 What is captured, per source medium:
 
@@ -236,6 +245,10 @@ What is captured, per source medium:
   publisher-family fields, plus a page-range locator for each citation drawn
   from it. The CLI may accept those names as strings; `AddSource` copies each
   one onto the source through `SourceAggregate.add_author`.
+- **Presentation (specified, not yet implemented: RFP-12 / issue #30):** the
+  same Source bibliographic record and optional overview note, plus a
+  slide-range locator for each selectively captured citation. A presentation
+  is not a manifest or inventory of every slide.
 - **Any future medium** (journal article, web page, dataset, and so on) is
   expected to supply the same two things — a bibliographic record and a
   locator convention appropriate to that medium — without changing anything
@@ -268,7 +281,8 @@ Tiferet's split between read-only domain objects and the aggregates that
 mutate them (`tiferet/domain/settings.py`, `tiferet/mappers/settings.py`).
 Author names are copied onto that aggregate one at a time; they are not
 constructed as independent objects at the event boundary. `AddSource` does not
-require a file; a source may be captured as bibliography only.
+require a file; a source may be captured as bibliography only, with an optional
+researcher overview note about the work as a whole.
 
 **Variable** with respect to the source-medium axis: the expected bibliographic
 fields and the locator convention differ by medium. **Agnostic** otherwise: a
@@ -292,7 +306,7 @@ name, not the original upload name.
 Compare-against-document is the same retrieve path used by an agent: resolve
 one or two sources to their bodies (and, where a locator is given, ask
 infrastructure to address into that body). The domain decides *which* source
-and *which* locator; it does not implement PDF libraries.
+and *which* locator; it does not implement PDF or presentation libraries.
 
 **Agnostic** in mechanism: every medium attaches, names, and retrieves the
 same way. **Variable** only in the download extension and in how a locator
@@ -314,9 +328,9 @@ capacity; an over-capacity value is rejected visibly rather than truncated.
 
 **Agnostic**: the shape of a citation — source reference, locator, excerpt,
 optional context note, optional title — is uniform no matter the source medium.
-**Variable** only in that the locator's internal shape (a page range,
-eventually something else) traces back to the source-medium axis established
-when the source was captured.
+**Variable** only in that the locator's internal shape and rendered label (a
+page range, a slide range, eventually something else) trace back to the
+source-medium axis established when the source was captured.
 
 ### 5.4 Linking, retiring, and reinstating a citation–theme linkage
 
@@ -416,6 +430,8 @@ rulebook: field order, punctuation, abbreviation conventions, and how the
 in-text form is shaped. Name parsing and locator display live on SourceAuthor,
 Source, and Citation (`app/domain/source.py`, `app/domain/citation.py`); the
 render event only resolves those objects and applies the rulebook templates.
+For the existing APA surface, page ranges continue to render as page locators,
+while a presentation's `slide_range` renders as `Slide 9` or `Slides 9-11`.
 Generic template substitution may stay beside that event until a second
 subdomain needs the same helper. This is the same "one mechanism, many
 rulebooks" pattern the Tiferet Dialect Compiler uses for component types
@@ -546,6 +562,9 @@ each is load-bearing for a specific later behavior:
 - **Source → Source document** is what makes reopen, download, and agent
   comparison possible: the body lives with the source, addressed by the
   document name on that source. A citation never stores the file.
+- **Source → Overview note** keeps a researcher's document-level judgment with
+  the work it describes. It neither substitutes for a passage's Citation
+  context note nor becomes an Abstract or a second classification system.
 - **Citation → Source** is what makes rendering (5.7) possible at all: a
   citation carries only a locator, not a bibliographic record, so rendering
   always resolves through the source it names.
@@ -585,6 +604,8 @@ Stated plainly, so that implementation work can be scoped against it:
 **Agnostic — build once, never per axis:**
 - Recording and preserving a citation's excerpt, optional surrounding-context
   note, locator reference, and optional researcher-authored title.
+- Recording and preserving an optional Source overview note about the work as a
+  whole.
 - Attaching, naming, and retrieving a source document (one optional body per
   source).
 - Forming a linkage between a citation and a theme, and retiring or
@@ -599,8 +620,8 @@ Stated plainly, so that implementation work can be scoped against it:
 
 **Variable — one definition per axis:**
 - **Per source medium:** the expected bibliographic fields, the shape of a
-  locator, the download-name extension, and how a locator maps into an
-  attached file.
+  locator, its rendered label, the download-name extension, and how a locator
+  maps into an attached file.
 - **Per citation style:** the rulebook a bibliographic record and locator are
   rendered through to produce an in-text citation and a reference-list entry.
 
@@ -613,6 +634,13 @@ separated from day one:
 - Treating "PDF" as the only source medium in the citation's locator shape,
   rather than letting locator shape vary by source medium from the start,
   would silently couple citation recording to one medium.
+- Treating a presentation as a collection of every slide, rather than a Source
+  from which a researcher selectively captures citations, would turn a reading
+  workflow into a bulk-ingest inventory and bypass the judgment the domain
+  exists to preserve.
+- Treating a Source overview note as Citation context or an Abstract would
+  collapse document-level context, passage-level context, and an argument-level
+  synthesis into one ambiguous text field.
 - Treating a SourceAuthor as an Author — giving the copied name an identity,
   a publisher id, or a life-cycle of its own — would pull author management
   into a domain that only needs enough name to cite a work. Constructing a
@@ -677,19 +705,20 @@ be built to avoid.
 ## 9. Boundaries
 
 **Inside the domain:** capturing sources and their bibliographic records
-(including SourceAuthor names copied from the work), attaching and naming a
-source document, retrieving that named body, recording citations with their
-locators and optional titles, forming and refining linkages between citations and themes
+(including SourceAuthor names copied from the work), recording an optional
+source-wide overview note, attaching and naming a source document, retrieving
+that named body, recording citations with their locators and optional titles,
+forming and refining linkages between citations and themes
 (including retiring a displaced linkage and reinstating it),
 composing an abstract from a selection of themes, rendering citations in a
 requested style, assembling an outline of named slots, and opening a Paper
 whose sections hold drafted content, context, and theme membership.
 
 **Outside the domain:**
-- Extracting text from a PDF, transcribing a book, or running OCR — supplied
-  by infrastructure utilities the domain depends on (in Tiferet terms, a
-  `FileService`-style component, `tiferet/interfaces/settings.py`), not
-  authored by it.
+- Extracting text from a PDF, transcribing a book, parsing a presentation deck,
+  or running OCR — supplied by infrastructure utilities the domain depends on
+  (in Tiferet terms, a `FileService`-style component,
+  `tiferet/interfaces/settings.py`), not authored by it.
 - Inventing the paper's voice — the domain stores section content and a
   context note; it does not own narrative phrasing. Publication (venue, DOI)
   is a later event.
@@ -742,6 +771,13 @@ Items 1–4 below already exist on `v1.x-proto`. What remains:
     widens a legacy citations table in place, sharing the same copy-on-write
     migration seam RFP-8 established. **Not yet modeled:** recovery of text
     already truncated under the old 4,000-byte limit.
+12. **Presentation sources and overview notes.** Specified, not yet implemented
+    (RFP-12, issue #30): `presentation` maps to a distinct `slide_range`
+    locator convention; citations remain selectively captured evidence, not a
+    slide manifest; and every Source may carry an optional researcher overview
+    note. APA renders slide locators distinctly from page locators. **Not yet
+    modeled:** a `Presentation` aggregate, slide inventory, deck parsing, or
+    automatic slide extraction.
 
 Each remaining item is a candidate for its own RFP. Together they are the
 difference between a set of ideas about how a literature review knowledge
