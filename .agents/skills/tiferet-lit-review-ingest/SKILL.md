@@ -8,7 +8,7 @@ description: Capture a source and its citations into the tiferet-lit-review know
 Teach an agent how to turn supplied reading material into live CLI calls.
 This skill covers source, citation, and theme capture — including source
 document attachment/download — as implemented on `v1.x-proto` as of
-`v1.0.0a14`. It does not extract text itself. Abstract composition, Outline
+`v1.0.0a17`. It does not extract text itself. Abstract composition, Outline
 assembly, and Paper drafting are implemented elsewhere in the app, but are
 separate, researcher-initiated workflows outside this skill's scope (see
 § Boundary with later workflows).
@@ -48,18 +48,21 @@ Also implemented on `v1.x-proto`, but out of this skill's scope (see
 
 | Flag | Required | Notes |
 |---|---|---|
-| `-m` / `--medium` | yes | `pdf`, `book`, or `web` |
+| `-m` / `--medium` | yes | `pdf`, `book`, `web`, or `presentation` |
 | `-a` / `--authors` | yes | Space-separated list; at least one. Quote any name that contains spaces. |
 | `-y` / `--year` | yes | Integer publication year |
 | `-t` / `--title` | yes | Work title |
 | `--container-title` | no | Journal or collection title |
 | `--publisher` | no | Publisher |
 | `--url` | no | Optional HTTP(S) URL for the source or online edition |
+| `--overview-note` | no | Optional researcher note about the work as a whole; only set it if the researcher supplies or approves one |
 
 `locator_convention` is derived from medium (`page_range` for `pdf` and
-`book`; a non-blank textual locator for `web`). Do not pass it. A URL is
-provenance/access metadata only: do not fetch, verify, scrape, or attach
-content from it.
+`book`; a non-blank textual locator for `web`; `slide_range` for
+`presentation`). Do not pass it. A URL is provenance/access metadata only: do
+not fetch, verify, scrape, or attach content from it. An overview note is a
+document-level judgment about the whole work — never a substitute for a
+citation's own `--context-note`.
 
 ### `source attach`
 
@@ -98,8 +101,8 @@ A locator like `12`, `p. 12`, or `12–14` (en-dash) is invalid.
 
 - `source list` — confirm the source landed; capture its `id` if you lost it.
 - `source update <id>` plus any of `-a`, `-y`, `-t`, `--container-title`,
-  `--publisher`, or `--url`; use `--clear-url` to remove a stored URL. Medium
-  cannot be changed this way.
+  `--publisher`, `--url`, or `--overview-note`; use `--clear-url` or
+  `--clear-overview-note` to remove either. Medium cannot be changed this way.
 - `source attach <id> -f PATH [-n NAME]` — attach a supplied local file to
   its source (see step 4). `source download <id> [-o DIR]` retrieves it later.
 - `citation list -s/--source-id` — required filter; returns that source only.
@@ -124,12 +127,15 @@ From title page, front matter, running headers, or an explicit citation, collect
 
 - `medium`: `pdf` if the artifact is a PDF/digital article file; `book` if it
   is a monograph/book; `web` for a web-native page, online text, or browser-
-  accessible textbook. Do not use `web` solely because a book also has an
-  online edition; retain `book` and record its optional URL instead.
+  accessible textbook; `presentation` for a slide deck. Do not use `web`
+  solely because a book also has an online edition; retain `book` and record
+  its optional URL instead.
 - `authors`, `year`, `title`
 - `container_title` and `publisher` when they are actually present
 - `url` when the researcher supplies or approves a specific HTTP(S) access
   location. Record it exactly; do not resolve, verify, scrape, or infer it.
+- `overview_note` only if the researcher gives a note about the work as a
+  whole — never infer one from the material yourself.
 
 If a required field is missing or ambiguous, ask. Do not guess a year, invent
 an author, or "fix" a title.
@@ -181,8 +187,10 @@ without naming passages, propose a short list of candidate excerpts and wait.
 For each approved passage, record:
 
 - locator as `start-end` digits (`142-144`, or `88-88` for one page) for
-  `pdf` and `book`, or a non-blank textual reference such as `5:1`, `Chapter
-  2`, or `#methods` for `web`
+  `pdf` and `book`; the same `start-end` digit shape for `presentation`, read
+  as a slide range (`9-9` for one slide, `9-11` for a span) rather than pages;
+  or a non-blank textual reference such as `5:1`, `Chapter 2`, or `#methods`
+  for `web`
 - excerpt text (quote when they quoted; paraphrase only if they asked)
 - optional `context_note` when the excerpt is unclear out of context
 - optional `title` only if the researcher gives this specific excerpt a
@@ -281,9 +289,12 @@ before any `source add`.
 ## Quality checklist
 
 - Bibliographic fields came from the material or the researcher, never invented.
-- Medium is `pdf`, `book`, or `web`.
-- Locator is `digits-digits` for `pdf`/`book`, or a non-blank textual
+- Medium is `pdf`, `book`, `web`, or `presentation`.
+- Locator is `digits-digits` for `pdf`/`book`/`presentation` (a page range for
+  the first two, a slide range for the last), or a non-blank textual
   reference for `web`.
+- An overview note, if set, was supplied or approved by the researcher and
+  describes the work as a whole, not one passage.
 - A URL, if recorded, was supplied or approved by the researcher and was not
   fetched, authenticated, scraped, or treated as a document attachment.
 - Every citation has an approved passage (not an unsolicited full-document dump).

@@ -141,6 +141,7 @@ class RenderCitation(DomainEvent):
             'container_title': source.container_title or '',
             'publisher': source.publisher or '',
             'locator': citation.normalize_locator(),
+            'locator_display': citation.locator_display(source.locator_convention),
             'medium': source.medium,
         }
 

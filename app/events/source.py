@@ -64,6 +64,7 @@ class AddSource(SourceEvent):
             publisher: Optional[str] = None,
             source_url: Optional[str] = None,
             url: Optional[str] = None,
+            overview_note: Optional[str] = None,
             **kwargs,
         ) -> SourceAggregate:
         '''
@@ -85,6 +86,8 @@ class AddSource(SourceEvent):
         :type source_url: Optional[str]
         :param url: The optional CLI source URL alias.
         :type url: Optional[str]
+        :param overview_note: An optional, medium-agnostic note about the work as a whole.
+        :type overview_note: Optional[str]
         :param kwargs: Additional keyword arguments.
         :type kwargs: dict
         :return: The created source aggregate.
@@ -109,6 +112,7 @@ class AddSource(SourceEvent):
             container_title=container_title,
             publisher=publisher,
             source_url=resolved_source_url,
+            overview_note=overview_note,
         )
 
         # Copy each printed name onto the source through the aggregate lifecycle.
@@ -190,8 +194,10 @@ class UpdateSource(SourceEvent):
             publisher: Optional[str] = None,
             source_url: Optional[str] = None,
             url: Optional[str] = None,
+            overview_note: Optional[str] = None,
             clear_source_url: bool = False,
             clear_url: bool = False,
+            clear_overview_note: bool = False,
             **kwargs,
         ) -> SourceAggregate:
         '''
@@ -213,10 +219,14 @@ class UpdateSource(SourceEvent):
         :type source_url: Optional[str]
         :param url: The optional CLI source URL replacement.
         :type url: Optional[str]
+        :param overview_note: The updated overview note, if provided.
+        :type overview_note: Optional[str]
         :param clear_source_url: When True, remove the source URL.
         :type clear_source_url: bool
         :param clear_url: The CLI alias for clear_source_url.
         :type clear_url: bool
+        :param clear_overview_note: When True, remove the overview note.
+        :type clear_overview_note: bool
         :param kwargs: Additional keyword arguments.
         :type kwargs: dict
         :return: The updated source aggregate.
@@ -252,7 +262,9 @@ class UpdateSource(SourceEvent):
             container_title=container_title,
             publisher=publisher,
             source_url=resolved_source_url,
+            overview_note=overview_note,
             clear_source_url=clear_source_url or clear_url,
+            clear_overview_note=clear_overview_note,
         )
         self.source_service.save(source)
 
