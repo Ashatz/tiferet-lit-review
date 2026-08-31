@@ -12,6 +12,7 @@ from tiferet import DomainEvent
 
 from app.domain.citation import MAX_CONTEXT_NOTE_BYTES, MAX_EXCERPT_BYTES, MAX_TITLE_BYTES
 from app.events.citation import AddCitation, UpdateCitation
+from app.interfaces.activity import ActivityService
 from app.interfaces.citation import CitationService
 from app.interfaces.source import SourceService
 from app.mappers.citation import CitationAggregate
@@ -96,6 +97,7 @@ def add_dependencies(source) -> dict:
     return {
         'citation_service': citation_service,
         'source_service': source_service,
+        'activity_service': mock.Mock(spec=ActivityService),
     }
 
 # ** fixture: update_dependencies
@@ -122,6 +124,7 @@ def update_dependencies(citation, source) -> dict:
     return {
         'citation_service': citation_service,
         'source_service': source_service,
+        'activity_service': mock.Mock(spec=ActivityService),
     }
 
 # *** tests

@@ -9,15 +9,28 @@ from uuid import uuid4
 # ** app
 from tiferet import DomainEvent
 
+from ..domain.activity import (
+    CITATION_SUBJECT_TYPE,
+    LINKAGE_CREATED_ACTION,
+    LINKAGE_REINSTATED_ACTION,
+    LINKAGE_RETIRED_ACTION,
+    THEME_ADDED_ACTION,
+    THEME_SUBJECT_TYPE,
+    THEME_SYNTHESIZED_ACTION,
+    THEME_UPDATED_ACTION,
+)
 from ..domain.citation import Citation
 from ..domain.linkage import Linkage
 from ..domain.theme import Theme, slugify_theme_name
+from ..interfaces.activity import ActivityService
 from ..interfaces.citation import CitationService
 from ..interfaces.linkage import LinkageService
 from ..interfaces.synthesis import ThemeSynthesisService
 from ..interfaces.theme import ThemeService
+from ..mappers.activity import ActivityAggregate
 from ..mappers.linkage import LinkageAggregate
 from ..mappers.theme import RetiredCitationView, ThemeAggregate, ThemeResponse
+from .activity import record_activity
 from .citation import CITATION_NOT_FOUND_ID
 
 # *** constants
@@ -98,6 +111,26 @@ class AddTheme(ThemeEvent):
     Register a new Theme with an empty synthesis until the first linkage.
     '''
 
+    # * attribute: activity_service
+    activity_service: ActivityService
+
+    # * init
+    def __init__(self, theme_service: ThemeService, activity_service: ActivityService) -> None:
+        '''
+        Initialize the AddTheme event.
+
+        :param theme_service: The theme service dependency.
+        :type theme_service: ThemeService
+        :param activity_service: The activity service dependency.
+        :type activity_service: ActivityService
+        '''
+
+        # Initialize the shared theme service dependency.
+        super().__init__(theme_service)
+
+        # Set the activity service dependency.
+        self.activity_service = activity_service
+
     # * method: execute
     @DomainEvent.parameters_required(['name'])
     def execute(self, name: str, **kwargs) -> Theme:
@@ -126,6 +159,13 @@ class AddTheme(ThemeEvent):
             retired_linkage_count=0,
         )
         self.theme_service.save(new_theme)
+
+        # Best-effort: record the creation.
+        record_activity(self.activity_service, ActivityAggregate(
+            action=THEME_ADDED_ACTION,
+            subject_type=THEME_SUBJECT_TYPE,
+            subject_id=new_theme.id,
+        ))
 
         # Return the newly created theme.
         return new_theme
@@ -250,12 +290,16 @@ class LinkCitationToTheme(DomainEvent):
     # * attribute: theme_synthesis_service
     theme_synthesis_service: ThemeSynthesisService
 
+    # * attribute: activity_service
+    activity_service: ActivityService
+
     # * init
     def __init__(self,
             theme_service: ThemeService,
             linkage_service: LinkageService,
             citation_service: CitationService,
             theme_synthesis_service: ThemeSynthesisService,
+            activity_service: ActivityService,
         ) -> None:
         '''
         Initialize the LinkCitationToTheme event.
@@ -268,6 +312,8 @@ class LinkCitationToTheme(DomainEvent):
         :type citation_service: CitationService
         :param theme_synthesis_service: Injected synthesizer (DI-swappable).
         :type theme_synthesis_service: ThemeSynthesisService
+        :param activity_service: The activity service dependency.
+        :type activity_service: ActivityService
         '''
 
         # Set all injected dependencies.
@@ -275,6 +321,7 @@ class LinkCitationToTheme(DomainEvent):
         self.linkage_service = linkage_service
         self.citation_service = citation_service
         self.theme_synthesis_service = theme_synthesis_service
+        self.activity_service = activity_service
 
     # * method: execute
     @DomainEvent.parameters_required(['citation_id', 'theme_id'])
@@ -337,6 +384,11 @@ class LinkCitationToTheme(DomainEvent):
                 description = self.theme_synthesis_service.synthesize(theme, citations)
                 theme.set_attribute('synthesized_description', description)
                 self.theme_service.save(theme)
+                record_activity(self.activity_service, ActivityAggregate(
+                    action=THEME_SYNTHESIZED_ACTION,
+                    subject_type=THEME_SUBJECT_TYPE,
+                    subject_id=theme_id,
+                ))
             return theme
 
         # Save the new linkage as a structural fact.
@@ -345,6 +397,16 @@ class LinkCitationToTheme(DomainEvent):
             theme_id=theme_id,
         )
         self.linkage_service.save(new_linkage)
+
+        # Best-effort: record the new structural fact right after its own
+        # successful write, independent of the theme save below.
+        record_activity(self.activity_service, ActivityAggregate(
+            action=LINKAGE_CREATED_ACTION,
+            subject_type=THEME_SUBJECT_TYPE,
+            subject_id=theme_id,
+            related_type=CITATION_SUBJECT_TYPE,
+            related_id=citation_id,
+        ))
 
         # Increment the active linkage count; a new linkage is always active.
         theme.set_attribute('linkage_count', theme.linkage_count + 1)
@@ -364,6 +426,14 @@ class LinkCitationToTheme(DomainEvent):
 
         # Persist the updated theme aggregate.
         self.theme_service.save(theme)
+
+        # A second, independent write (synthesis) gets its own entry.
+        if include_synthesis:
+            record_activity(self.activity_service, ActivityAggregate(
+                action=THEME_SYNTHESIZED_ACTION,
+                subject_type=THEME_SUBJECT_TYPE,
+                subject_id=theme_id,
+            ))
 
         # Return the updated theme.
         return theme
@@ -388,11 +458,15 @@ class RetireLinkage(DomainEvent):
     # * attribute: citation_service
     citation_service: CitationService
 
+    # * attribute: activity_service
+    activity_service: ActivityService
+
     # * init
     def __init__(self,
             theme_service: ThemeService,
             linkage_service: LinkageService,
             citation_service: CitationService,
+            activity_service: ActivityService,
         ) -> None:
         '''
         Initialize the RetireLinkage event.
@@ -403,12 +477,15 @@ class RetireLinkage(DomainEvent):
         :type linkage_service: LinkageService
         :param citation_service: The citation service dependency.
         :type citation_service: CitationService
+        :param activity_service: The activity service dependency.
+        :type activity_service: ActivityService
         '''
 
         # Set all injected dependencies.
         self.theme_service = theme_service
         self.linkage_service = linkage_service
         self.citation_service = citation_service
+        self.activity_service = activity_service
 
     # * method: execute
     @DomainEvent.parameters_required(['citation_id', 'theme_id'])
@@ -475,6 +552,20 @@ class RetireLinkage(DomainEvent):
         theme.set_attribute('retired_linkage_count', theme.retired_linkage_count + 1)
         self.theme_service.save(theme)
 
+        # Only a real state change reaches here; gated on the bool return
+        # from retire() above, so idempotent re-retirement records nothing.
+        changed_fields = ['retired_at']
+        if reason is not None:
+            changed_fields.append('retirement_reason')
+        record_activity(self.activity_service, ActivityAggregate(
+            action=LINKAGE_RETIRED_ACTION,
+            subject_type=THEME_SUBJECT_TYPE,
+            subject_id=theme_id,
+            related_type=CITATION_SUBJECT_TYPE,
+            related_id=citation_id,
+            changed_fields=changed_fields,
+        ))
+
         # Return the retired linkage.
         return linkage
 
@@ -497,11 +588,15 @@ class ReinstateLinkage(DomainEvent):
     # * attribute: citation_service
     citation_service: CitationService
 
+    # * attribute: activity_service
+    activity_service: ActivityService
+
     # * init
     def __init__(self,
             theme_service: ThemeService,
             linkage_service: LinkageService,
             citation_service: CitationService,
+            activity_service: ActivityService,
         ) -> None:
         '''
         Initialize the ReinstateLinkage event.
@@ -512,12 +607,15 @@ class ReinstateLinkage(DomainEvent):
         :type linkage_service: LinkageService
         :param citation_service: The citation service dependency.
         :type citation_service: CitationService
+        :param activity_service: The activity service dependency.
+        :type activity_service: ActivityService
         '''
 
         # Set all injected dependencies.
         self.theme_service = theme_service
         self.linkage_service = linkage_service
         self.citation_service = citation_service
+        self.activity_service = activity_service
 
     # * method: execute
     @DomainEvent.parameters_required(['citation_id', 'theme_id'])
@@ -576,6 +674,17 @@ class ReinstateLinkage(DomainEvent):
         theme.set_attribute('linkage_count', theme.linkage_count + 1)
         theme.set_attribute('retired_linkage_count', theme.retired_linkage_count - 1)
         self.theme_service.save(theme)
+
+        # Only a real state change reaches here; gated on the bool return
+        # from reinstate() above, so idempotent reinstatement records nothing.
+        record_activity(self.activity_service, ActivityAggregate(
+            action=LINKAGE_REINSTATED_ACTION,
+            subject_type=THEME_SUBJECT_TYPE,
+            subject_id=theme_id,
+            related_type=CITATION_SUBJECT_TYPE,
+            related_id=citation_id,
+            changed_fields=['retired_at', 'retirement_reason'],
+        ))
 
         # Return the reinstated linkage.
         return linkage
@@ -677,6 +786,26 @@ class UpdateTheme(ThemeEvent):
     invoking the synthesizer.
     '''
 
+    # * attribute: activity_service
+    activity_service: ActivityService
+
+    # * init
+    def __init__(self, theme_service: ThemeService, activity_service: ActivityService) -> None:
+        '''
+        Initialize the UpdateTheme event.
+
+        :param theme_service: The theme service dependency.
+        :type theme_service: ThemeService
+        :param activity_service: The activity service dependency.
+        :type activity_service: ActivityService
+        '''
+
+        # Initialize the shared theme service dependency.
+        super().__init__(theme_service)
+
+        # Set the activity service dependency.
+        self.activity_service = activity_service
+
     # * method: execute
     @DomainEvent.parameters_required(['id'])
     def execute(self,
@@ -730,6 +859,23 @@ class UpdateTheme(ThemeEvent):
         # Persist the updated theme aggregate.
         self.theme_service.save(theme)
 
+        # Record only the field names this editorial call actually touched;
+        # a call that touched nothing is a no-op and records nothing. This
+        # is theme.updated, not theme.synthesized -- an editorial write is a
+        # different act from running the synthesizer.
+        changed_fields = []
+        if name is not None:
+            changed_fields.append('name')
+        if next_description is not None:
+            changed_fields.append('synthesized_description')
+        if changed_fields:
+            record_activity(self.activity_service, ActivityAggregate(
+                action=THEME_UPDATED_ACTION,
+                subject_type=THEME_SUBJECT_TYPE,
+                subject_id=theme.id,
+                changed_fields=changed_fields,
+            ))
+
         # Return the updated theme.
         return theme
 
@@ -755,12 +901,16 @@ class ResynthesizeTheme(DomainEvent):
     # * attribute: theme_synthesis_service
     theme_synthesis_service: ThemeSynthesisService
 
+    # * attribute: activity_service
+    activity_service: ActivityService
+
     # * init
     def __init__(self,
             theme_service: ThemeService,
             linkage_service: LinkageService,
             citation_service: CitationService,
             theme_synthesis_service: ThemeSynthesisService,
+            activity_service: ActivityService,
         ) -> None:
         '''
         Initialize the ResynthesizeTheme event.
@@ -773,6 +923,8 @@ class ResynthesizeTheme(DomainEvent):
         :type citation_service: CitationService
         :param theme_synthesis_service: Injected synthesizer (DI-swappable).
         :type theme_synthesis_service: ThemeSynthesisService
+        :param activity_service: The activity service dependency.
+        :type activity_service: ActivityService
         '''
 
         # Set all injected dependencies.
@@ -780,6 +932,7 @@ class ResynthesizeTheme(DomainEvent):
         self.linkage_service = linkage_service
         self.citation_service = citation_service
         self.theme_synthesis_service = theme_synthesis_service
+        self.activity_service = activity_service
 
     # * method: execute
     @DomainEvent.parameters_required(['id'])
@@ -811,6 +964,13 @@ class ResynthesizeTheme(DomainEvent):
         description = self.theme_synthesis_service.synthesize(theme, citations)
         theme.set_attribute('synthesized_description', description)
         self.theme_service.save(theme)
+
+        # An explicit resynthesis is always a real, recorded act.
+        record_activity(self.activity_service, ActivityAggregate(
+            action=THEME_SYNTHESIZED_ACTION,
+            subject_type=THEME_SUBJECT_TYPE,
+            subject_id=theme.id,
+        ))
 
         # Return the updated theme.
         return theme
