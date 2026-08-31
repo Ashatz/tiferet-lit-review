@@ -1,4 +1,12 @@
 services:
+  activity_service:
+    module_path: app.repos.activity
+    class_name: ActivityH5Repository
+    parameters:
+      h5_file: .lit_review/lit_review.h5
+  list_activities_event:
+    module_path: app.events.activity
+    class_name: ListActivities
   source_service:
     module_path: app.repos.source
     class_name: SourceH5Repository

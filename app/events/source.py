@@ -9,9 +9,18 @@ from typing import List, Optional
 # ** app
 from tiferet import DomainEvent
 
+from ..domain.activity import (
+    SOURCE_ADDED_ACTION,
+    SOURCE_DOCUMENT_ATTACHED_ACTION,
+    SOURCE_SUBJECT_TYPE,
+    SOURCE_UPDATED_ACTION,
+)
+from ..interfaces.activity import ActivityService
 from ..interfaces.file import DocumentFileService
 from ..interfaces.source import SourceService
+from ..mappers.activity import ActivityAggregate
 from ..mappers.source import SourceAggregate, SourceDocumentResponse
+from .activity import record_activity
 
 # *** constants
 
@@ -52,6 +61,26 @@ class AddSource(SourceEvent):
     '''
     Register a new Source with its bibliographic record.
     '''
+
+    # * attribute: activity_service
+    activity_service: ActivityService
+
+    # * init
+    def __init__(self, source_service: SourceService, activity_service: ActivityService) -> None:
+        '''
+        Initialize the AddSource event.
+
+        :param source_service: The source service dependency.
+        :type source_service: SourceService
+        :param activity_service: The activity service dependency.
+        :type activity_service: ActivityService
+        '''
+
+        # Initialize the shared source service dependency.
+        super().__init__(source_service)
+
+        # Set the activity service dependency.
+        self.activity_service = activity_service
 
     # * method: execute
     @DomainEvent.parameters_required(['source_medium', 'authors', 'year', 'title'])
@@ -120,6 +149,14 @@ class AddSource(SourceEvent):
             new_source.add_author(display_name)
         self.source_service.save(new_source)
 
+        # Best-effort: record the creation; a failed append never affects
+        # the already-successful save above.
+        record_activity(self.activity_service, ActivityAggregate(
+            action=SOURCE_ADDED_ACTION,
+            subject_type=SOURCE_SUBJECT_TYPE,
+            subject_id=new_source.id,
+        ))
+
         # Return the newly created source.
         return new_source
 
@@ -182,6 +219,26 @@ class UpdateSource(SourceEvent):
     '''
     Update mutable bibliographic fields on an existing Source.
     '''
+
+    # * attribute: activity_service
+    activity_service: ActivityService
+
+    # * init
+    def __init__(self, source_service: SourceService, activity_service: ActivityService) -> None:
+        '''
+        Initialize the UpdateSource event.
+
+        :param source_service: The source service dependency.
+        :type source_service: SourceService
+        :param activity_service: The activity service dependency.
+        :type activity_service: ActivityService
+        '''
+
+        # Initialize the shared source service dependency.
+        super().__init__(source_service)
+
+        # Set the activity service dependency.
+        self.activity_service = activity_service
 
     # * method: execute
     @DomainEvent.parameters_required(['id'])
@@ -268,6 +325,31 @@ class UpdateSource(SourceEvent):
         )
         self.source_service.save(source)
 
+        # Record only the field names this call actually touched; an update
+        # call that touched nothing is a no-op and records nothing.
+        changed_fields = []
+        if authors is not None:
+            changed_fields.append('authors')
+        if year is not None:
+            changed_fields.append('year')
+        if title is not None:
+            changed_fields.append('title')
+        if container_title is not None:
+            changed_fields.append('container_title')
+        if publisher is not None:
+            changed_fields.append('publisher')
+        if clear_source_url or clear_url or resolved_source_url is not None:
+            changed_fields.append('source_url')
+        if clear_overview_note or overview_note is not None:
+            changed_fields.append('overview_note')
+        if changed_fields:
+            record_activity(self.activity_service, ActivityAggregate(
+                action=SOURCE_UPDATED_ACTION,
+                subject_type=SOURCE_SUBJECT_TYPE,
+                subject_id=source.id,
+                changed_fields=changed_fields,
+            ))
+
         # Return the updated source.
         return source
 
@@ -280,10 +362,14 @@ class AttachSourceDocument(SourceEvent):
     # * attribute: document_file_service
     document_file_service: DocumentFileService
 
+    # * attribute: activity_service
+    activity_service: ActivityService
+
     # * init
     def __init__(self,
             source_service: SourceService,
             document_file_service: DocumentFileService,
+            activity_service: ActivityService,
         ) -> None:
         '''
         Initialize the AttachSourceDocument event.
@@ -292,6 +378,8 @@ class AttachSourceDocument(SourceEvent):
         :type source_service: SourceService
         :param document_file_service: Reads raw upload bytes from disk.
         :type document_file_service: DocumentFileService
+        :param activity_service: The activity service dependency.
+        :type activity_service: ActivityService
         '''
 
         # Initialize the shared source service dependency.
@@ -299,6 +387,9 @@ class AttachSourceDocument(SourceEvent):
 
         # Set the document file service dependency.
         self.document_file_service = document_file_service
+
+        # Set the activity service dependency.
+        self.activity_service = activity_service
 
     # * method: execute
     @DomainEvent.parameters_required(['source_id', 'path'])
@@ -346,6 +437,14 @@ class AttachSourceDocument(SourceEvent):
         # Persist the name first, then replace the single document array.
         self.source_service.save(source)
         self.source_service.save_document(source.id, content)
+
+        # Attaching always changes document_name; never a byte, path, or URL.
+        record_activity(self.activity_service, ActivityAggregate(
+            action=SOURCE_DOCUMENT_ATTACHED_ACTION,
+            subject_type=SOURCE_SUBJECT_TYPE,
+            subject_id=source.id,
+            changed_fields=['document_name'],
+        ))
 
         # Return the updated source.
         return source

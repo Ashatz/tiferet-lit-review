@@ -31,6 +31,7 @@ from app.events.source import (
     GetSourceDocument,
     UpdateSource,
 )
+from app.interfaces.activity import ActivityService
 from app.interfaces.file import DocumentFileService
 from app.interfaces.source import SourceService
 from app.mappers.source import SourceAggregate, SourceDocumentResponse
@@ -134,6 +135,7 @@ def attach_dependencies(multi_author_source) -> dict:
     return {
         'source_service': source_service,
         'document_file_service': document_file_service,
+        'activity_service': mock.Mock(spec=ActivityService),
     }
 
 # *** tests
@@ -339,6 +341,7 @@ def test_attach_source_document_missing_source():
             dependencies={
                 'source_service': source_service,
                 'document_file_service': document_file_service,
+                'activity_service': mock.Mock(spec=ActivityService),
             },
             source_id='missing-source',
             path=UPLOAD_PATH,
@@ -372,6 +375,7 @@ def test_attach_source_document_replaces_existing_array(
         dependencies={
             'source_service': source_service,
             'document_file_service': document_file_service,
+            'activity_service': mock.Mock(spec=ActivityService),
         },
         source_id=SOURCE_ID,
         path=UPLOAD_PATH,
@@ -519,7 +523,10 @@ def test_add_web_source_accepts_cli_url_alias():
     # Capture a web-native source with a canonical online location.
     result = DomainEvent.handle(
         AddSource,
-        dependencies={'source_service': source_service},
+        dependencies={
+            'source_service': source_service,
+            'activity_service': mock.Mock(spec=ActivityService),
+        },
         source_medium='web',
         authors=['Example, A.'],
         year=2026,
@@ -616,16 +623,20 @@ def test_update_source_replaces_and_clears_cli_url_alias():
     source_service.get.return_value = source
 
     # Replace through the raw CLI alias, then clear through its explicit flag.
+    update_dependencies = {
+        'source_service': source_service,
+        'activity_service': mock.Mock(spec=ActivityService),
+    }
     DomainEvent.handle(
         UpdateSource,
-        dependencies={'source_service': source_service},
+        dependencies=update_dependencies,
         id=SOURCE_ID,
         url='https://example.com/revised',
     )
     assert source.source_url == 'https://example.com/revised'
     DomainEvent.handle(
         UpdateSource,
-        dependencies={'source_service': source_service},
+        dependencies=update_dependencies,
         id=SOURCE_ID,
         clear_url=True,
     )
@@ -646,7 +657,10 @@ def test_add_presentation_source_derives_slide_range_convention():
     # Capture a presentation source; pdf/book still derive page_range.
     result = DomainEvent.handle(
         AddSource,
-        dependencies={'source_service': source_service},
+        dependencies={
+            'source_service': source_service,
+            'activity_service': mock.Mock(spec=ActivityService),
+        },
         source_medium='presentation',
         authors=['Example, A.'],
         year=2026,
@@ -683,7 +697,10 @@ def test_add_source_stores_overview_note():
     # Capture a source with a researcher-authored overview note.
     result = DomainEvent.handle(
         AddSource,
-        dependencies={'source_service': source_service},
+        dependencies={
+            'source_service': source_service,
+            'activity_service': mock.Mock(spec=ActivityService),
+        },
         source_medium='pdf',
         authors=['Lattner, C.'],
         year=2020,
@@ -706,7 +723,10 @@ def test_add_source_blank_overview_note_becomes_none():
     # Capture a source with a whitespace-only overview note.
     result = DomainEvent.handle(
         AddSource,
-        dependencies={'source_service': source_service},
+        dependencies={
+            'source_service': source_service,
+            'activity_service': mock.Mock(spec=ActivityService),
+        },
         source_medium='pdf',
         authors=['Lattner, C.'],
         year=2020,
@@ -735,9 +755,13 @@ def test_update_source_replaces_and_clears_overview_note():
     source_service.get.return_value = source
 
     # Replace the overview note.
+    update_dependencies = {
+        'source_service': source_service,
+        'activity_service': mock.Mock(spec=ActivityService),
+    }
     DomainEvent.handle(
         UpdateSource,
-        dependencies={'source_service': source_service},
+        dependencies=update_dependencies,
         id=SOURCE_ID,
         overview_note='Revised overview.',
     )
@@ -746,7 +770,7 @@ def test_update_source_replaces_and_clears_overview_note():
     # An unrelated update leaves the overview note untouched.
     DomainEvent.handle(
         UpdateSource,
-        dependencies={'source_service': source_service},
+        dependencies=update_dependencies,
         id=SOURCE_ID,
         publisher='LLVM Foundation',
     )
@@ -756,7 +780,7 @@ def test_update_source_replaces_and_clears_overview_note():
     # Explicit clear removes the overview note without touching other fields.
     DomainEvent.handle(
         UpdateSource,
-        dependencies={'source_service': source_service},
+        dependencies=update_dependencies,
         id=SOURCE_ID,
         clear_overview_note=True,
     )

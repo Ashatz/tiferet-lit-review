@@ -21,6 +21,7 @@ from app.events.theme import (
     ShowTheme,
     UpdateTheme,
 )
+from app.interfaces.activity import ActivityService
 from app.interfaces.citation import CitationService
 from app.interfaces.linkage import LinkageService
 from app.interfaces.synthesis import ThemeSynthesisService
@@ -140,6 +141,7 @@ def link_dependencies(theme, citation, linkage) -> dict:
         'linkage_service': linkage_service,
         'citation_service': citation_service,
         'theme_synthesis_service': theme_synthesis_service,
+        'activity_service': mock.Mock(spec=ActivityService),
     }
 
 # *** tests
@@ -347,7 +349,10 @@ def test_update_theme_sets_description_without_citations(theme):
     # Write the exact curated narrative via the CLI description alias.
     result = DomainEvent.handle(
         UpdateTheme,
-        dependencies={'theme_service': theme_service},
+        dependencies={
+            'theme_service': theme_service,
+            'activity_service': mock.Mock(spec=ActivityService),
+        },
         id=THEME_ID,
         description=CURATED_DESCRIPTION,
     )
@@ -373,7 +378,10 @@ def test_update_theme_sets_name(theme):
     # Rename the theme without touching the description.
     result = DomainEvent.handle(
         UpdateTheme,
-        dependencies={'theme_service': theme_service},
+        dependencies={
+            'theme_service': theme_service,
+            'activity_service': mock.Mock(spec=ActivityService),
+        },
         id=THEME_ID,
         name='Renamed theme',
     )
@@ -396,7 +404,10 @@ def test_update_theme_missing_theme():
     with pytest.raises(TiferetError) as exc_info:
         DomainEvent.handle(
             UpdateTheme,
-            dependencies={'theme_service': theme_service},
+            dependencies={
+                'theme_service': theme_service,
+                'activity_service': mock.Mock(spec=ActivityService),
+            },
             id='missing-theme',
             description=CURATED_DESCRIPTION,
         )
@@ -438,6 +449,7 @@ def test_resynthesize_theme_excludes_retired_linkages(theme, citation, linkage):
             'linkage_service': linkage_service,
             'citation_service': citation_service,
             'theme_synthesis_service': theme_synthesis_service,
+            'activity_service': mock.Mock(spec=ActivityService),
         },
         id=THEME_ID,
     )
@@ -476,6 +488,7 @@ def retirement_dependencies(theme, citation, linkage) -> dict:
         'theme_service': theme_service,
         'linkage_service': linkage_service,
         'citation_service': citation_service,
+        'activity_service': mock.Mock(spec=ActivityService),
     }
 
 # ** test: test_retire_linkage_marks_retired_and_moves_counts
@@ -770,6 +783,7 @@ def test_resynthesize_theme_reloads_linkages(theme, citation, linkage):
             'linkage_service': linkage_service,
             'citation_service': citation_service,
             'theme_synthesis_service': theme_synthesis_service,
+            'activity_service': mock.Mock(spec=ActivityService),
         },
         id=THEME_ID,
     )
@@ -799,6 +813,7 @@ def test_resynthesize_theme_missing_theme():
                 'linkage_service': mock.Mock(spec=LinkageService),
                 'citation_service': mock.Mock(spec=CitationService),
                 'theme_synthesis_service': mock.Mock(spec=ThemeSynthesisService),
+                'activity_service': mock.Mock(spec=ActivityService),
             },
             id='missing-theme',
         )

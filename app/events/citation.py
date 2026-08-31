@@ -8,10 +8,14 @@ from typing import List, Optional
 # ** app
 from tiferet import DomainEvent
 
+from ..domain.activity import CITATION_ADDED_ACTION, CITATION_SUBJECT_TYPE, CITATION_UPDATED_ACTION
 from ..domain.source import is_valid_locator
+from ..interfaces.activity import ActivityService
 from ..interfaces.citation import CitationService
 from ..interfaces.source import SourceService
+from ..mappers.activity import ActivityAggregate
 from ..mappers.citation import CitationAggregate
+from .activity import record_activity
 from .source import SOURCE_NOT_FOUND_ID
 
 # *** constants
@@ -54,8 +58,15 @@ class AddCitation(CitationEvent):
     # * attribute: source_service
     source_service: SourceService
 
+    # * attribute: activity_service
+    activity_service: ActivityService
+
     # * init
-    def __init__(self, citation_service: CitationService, source_service: SourceService) -> None:
+    def __init__(self,
+            citation_service: CitationService,
+            source_service: SourceService,
+            activity_service: ActivityService,
+        ) -> None:
         '''
         Initialize the AddCitation event.
 
@@ -64,6 +75,8 @@ class AddCitation(CitationEvent):
         :param source_service: The source service dependency, used to verify
             the parent source and resolve its locator convention.
         :type source_service: SourceService
+        :param activity_service: The activity service dependency.
+        :type activity_service: ActivityService
         '''
 
         # Initialize the shared citation service dependency.
@@ -71,6 +84,9 @@ class AddCitation(CitationEvent):
 
         # Set the source service dependency.
         self.source_service = source_service
+
+        # Set the activity service dependency.
+        self.activity_service = activity_service
 
     # * method: execute
     @DomainEvent.parameters_required(['source_id', 'locator', 'excerpt'])
@@ -129,6 +145,14 @@ class AddCitation(CitationEvent):
             title=title,
         )
         self.citation_service.save(new_citation)
+
+        # Best-effort: record the creation; excerpt/context_note/title values
+        # are never carried onto the activity entry, only the field names.
+        record_activity(self.activity_service, ActivityAggregate(
+            action=CITATION_ADDED_ACTION,
+            subject_type=CITATION_SUBJECT_TYPE,
+            subject_id=new_citation.id,
+        ))
 
         # Return the newly created citation.
         return new_citation
@@ -199,8 +223,15 @@ class UpdateCitation(CitationEvent):
     # * attribute: source_service
     source_service: SourceService
 
+    # * attribute: activity_service
+    activity_service: ActivityService
+
     # * init
-    def __init__(self, citation_service: CitationService, source_service: SourceService) -> None:
+    def __init__(self,
+            citation_service: CitationService,
+            source_service: SourceService,
+            activity_service: ActivityService,
+        ) -> None:
         '''
         Initialize the UpdateCitation event.
 
@@ -209,6 +240,8 @@ class UpdateCitation(CitationEvent):
         :param source_service: The source service dependency, used to
             re-validate locator shape against the parent source.
         :type source_service: SourceService
+        :param activity_service: The activity service dependency.
+        :type activity_service: ActivityService
         '''
 
         # Initialize the shared citation service dependency.
@@ -216,6 +249,9 @@ class UpdateCitation(CitationEvent):
 
         # Set the source service dependency.
         self.source_service = source_service
+
+        # Set the activity service dependency.
+        self.activity_service = activity_service
 
     # * method: execute
     @DomainEvent.parameters_required(['id'])
@@ -294,6 +330,25 @@ class UpdateCitation(CitationEvent):
 
         # Persist the updated citation via id-upsert save.
         self.citation_service.save(citation)
+
+        # Record only the field names this call actually touched; an update
+        # call that touched nothing is a no-op and records nothing.
+        changed_fields = []
+        if locator is not None:
+            changed_fields.append('locator')
+        if excerpt is not None:
+            changed_fields.append('excerpt')
+        if context_note is not None:
+            changed_fields.append('context_note')
+        if clear_title or title is not None:
+            changed_fields.append('title')
+        if changed_fields:
+            record_activity(self.activity_service, ActivityAggregate(
+                action=CITATION_UPDATED_ACTION,
+                subject_type=CITATION_SUBJECT_TYPE,
+                subject_id=citation.id,
+                changed_fields=changed_fields,
+            ))
 
         # Return the updated citation.
         return citation

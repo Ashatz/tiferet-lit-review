@@ -1,5 +1,23 @@
 cli:
   cmds:
+    activity:
+      list:
+        name: List Activities
+        key: list
+        group_key: activity
+        args:
+          - name_or_flags: ["--action"]
+            required: false
+            description: "Optional action token to match exactly (e.g. source.added)."
+          - name_or_flags: ["--subject-type"]
+            required: false
+            description: "Optional subject type to match exactly (e.g. source, citation, theme)."
+          - name_or_flags: ["--subject-id"]
+            required: false
+            description: "Optional subject identifier to match exactly."
+          - name_or_flags: ["--related-id"]
+            required: false
+            description: "Optional related identifier to match exactly."
     source:
       add:
         name: Add Source
