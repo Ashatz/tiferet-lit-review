@@ -7,11 +7,11 @@ description: Capture a source and its citations into the tiferet-lit-review know
 
 Teach an agent how to turn supplied reading material into live CLI calls.
 This skill covers source, citation, and theme capture — including source
-document attachment/download — as implemented on `v1.x-proto` as of
-`v1.0.0a17`. It does not extract text itself. Abstract composition, Outline
-assembly, and Paper drafting are implemented elsewhere in the app, but are
-separate, researcher-initiated workflows outside this skill's scope (see
-§ Boundary with later workflows).
+document attachment/download — as implemented on `v1.x-proto` through
+RFP-13 (Activity Log). It does not extract text itself. Abstract composition,
+Outline assembly, and Paper drafting are implemented elsewhere in the app,
+but are separate, researcher-initiated workflows outside this skill's scope
+(see § Boundary with later workflows).
 
 ## When to use
 
@@ -43,6 +43,10 @@ Implemented groups this skill uses:
 
 Also implemented on `v1.x-proto`, but out of this skill's scope (see
 § Boundary with later workflows): `abstract`, `outline`, `paper`.
+`activity list` also exists as a read-only history view; every successful
+`source`, `citation`, and `theme` write this skill makes below records its
+own activity entry automatically and best-effort — this skill never calls
+`activity list`, and there is no `activity add` command to invent.
 
 ### `source add`
 
@@ -305,6 +309,6 @@ before any `source add`.
 - Default `theme link` was used unless the researcher asked to synthesize.
 - A supplied local file was attached with `source attach`, or the researcher
   was told why it wasn't.
-- No `abstract`, `outline`, or `paper` command was invented or invoked from
-  this skill.
+- No `abstract`, `outline`, `paper`, or `activity` command was invented or
+  invoked from this skill.
 - Returned `id`s were captured from CLI output, not guessed.
