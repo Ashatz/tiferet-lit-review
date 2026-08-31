@@ -31,7 +31,6 @@ class ActivityAggregate(ActivityEntry, Aggregate):
     recorded, so nothing about it is ever updated after creation.
     '''
 
-
 # ** mapper: activity_table_object
 class ActivityTableObject(ActivityEntry, TableObject):
     '''

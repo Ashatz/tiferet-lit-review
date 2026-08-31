@@ -17,31 +17,43 @@ from tiferet.domain.core import DomainObject
 
 # ** constant: source_subject_type
 SOURCE_SUBJECT_TYPE = 'source'
+
 # ** constant: citation_subject_type
 CITATION_SUBJECT_TYPE = 'citation'
+
 # ** constant: theme_subject_type
 THEME_SUBJECT_TYPE = 'theme'
 
 # ** constant: source_added_action
 SOURCE_ADDED_ACTION = 'source.added'
+
 # ** constant: source_updated_action
 SOURCE_UPDATED_ACTION = 'source.updated'
+
 # ** constant: source_document_attached_action
 SOURCE_DOCUMENT_ATTACHED_ACTION = 'source.document_attached'
+
 # ** constant: citation_added_action
 CITATION_ADDED_ACTION = 'citation.added'
+
 # ** constant: citation_updated_action
 CITATION_UPDATED_ACTION = 'citation.updated'
+
 # ** constant: theme_added_action
 THEME_ADDED_ACTION = 'theme.added'
+
 # ** constant: theme_updated_action
 THEME_UPDATED_ACTION = 'theme.updated'
+
 # ** constant: theme_synthesized_action
 THEME_SYNTHESIZED_ACTION = 'theme.synthesized'
+
 # ** constant: linkage_created_action
 LINKAGE_CREATED_ACTION = 'linkage.created'
+
 # ** constant: linkage_retired_action
 LINKAGE_RETIRED_ACTION = 'linkage.retired'
+
 # ** constant: linkage_reinstated_action
 LINKAGE_REINSTATED_ACTION = 'linkage.reinstated'
 
