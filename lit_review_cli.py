@@ -7,9 +7,7 @@
 import sys
 
 # ** app
-from tiferet import CLI
-
-from app.blueprints import INTERFACE_ID, APP_CONFIG_FILE
+from app.blueprints import APP_CONFIG_FILE, build_cli
 
 # *** functions
 
@@ -24,9 +22,8 @@ def main(argv: list = None) -> None:
     :rtype: None
     '''
 
-    # Dispatch argv through the framework's CLI blueprint, pinned to this
-    # application's interface id and configuration file.
-    CLI(INTERFACE_ID, argv=argv, app_config=APP_CONFIG_FILE)
+    # Dispatch argv through the app CLI blueprint so LitReviewFeatureContext runs.
+    build_cli(argv=argv, app_config=APP_CONFIG_FILE)
 
 if __name__ == '__main__':
     main(sys.argv[1:])
