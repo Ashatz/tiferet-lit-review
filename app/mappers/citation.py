@@ -13,7 +13,12 @@ from tiferet_h5 import TableObject
 # ** app
 from tiferet.mappers.core import Aggregate, TransferObject
 
-from ..domain.citation import Citation
+from ..domain.citation import (
+    MAX_CONTEXT_NOTE_BYTES,
+    MAX_EXCERPT_BYTES,
+    MAX_TITLE_BYTES,
+    Citation,
+)
 
 # *** mappers
 
@@ -107,9 +112,9 @@ class CitationTableObject(Citation, TableObject):
         'id': tables.StringCol(64),
         'source_id': tables.StringCol(64),
         'locator': tables.StringCol(64),
-        'excerpt': tables.StringCol(16384),
-        'context_note': tables.StringCol(16384),
-        'title': tables.StringCol(256),
+        'excerpt': tables.StringCol(MAX_EXCERPT_BYTES),
+        'context_note': tables.StringCol(MAX_CONTEXT_NOTE_BYTES),
+        'title': tables.StringCol(MAX_TITLE_BYTES),
         'created_at': tables.Int64Col(),
     }
 

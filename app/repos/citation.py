@@ -36,6 +36,9 @@ CITATIONS_BACKUP_LEAF = 'citations_upgrade_backup'
 # ** constant: citations_backup_path
 CITATIONS_BACKUP_PATH = f'{CITATIONS_GROUP_PATH}/{CITATIONS_BACKUP_LEAF}'
 
+# ** constant: citations_table_filters
+CITATIONS_TABLE_FILTERS = tables.Filters(complib='zlib', complevel=5)
+
 # *** repos
 
 # ** repo: citation_h5_repository
@@ -156,6 +159,7 @@ class CitationH5Repository(CitationService, H5Repository):
             table = h5.get_or_create_table(
                 CITATIONS_TABLE_PATH,
                 CitationTableObject.get_description(),
+                filters=CITATIONS_TABLE_FILTERS,
             )
 
             # Compare against the encoded id so StringCol bytes match.
@@ -320,6 +324,7 @@ class CitationH5Repository(CitationService, H5Repository):
         staging_table = h5.create_table(
             CITATIONS_STAGING_PATH,
             CitationTableObject.get_description(),
+            filters=CITATIONS_TABLE_FILTERS,
         )
         for row in legacy_rows:
             CitationTableObject.from_row(row).to_row(staging_table)
@@ -361,6 +366,30 @@ class CitationH5Repository(CitationService, H5Repository):
         # Collect the id column from each row.
         return {row.get('id') for row in rows}
 
+    # * method: _comparable_cell (static)
+    @staticmethod
+    def _comparable_cell(value: Any) -> Any:
+        '''
+        Normalize a stored cell for exact field comparison.
+
+        StringCol padding is not citation content, so trailing NUL bytes are
+        stripped before comparing. Bytes are compared as UTF-8 text.
+
+        :param value: A cell value from ``H5Client.read_rows``.
+        :type value: Any
+        :return: A comparable Python-native value.
+        :rtype: Any
+        '''
+
+        # Decode and strip StringCol padding so width changes are not content.
+        if isinstance(value, bytes):
+            return value.rstrip(b'\x00').decode('utf-8')
+        if isinstance(value, str):
+            return value.rstrip('\x00')
+
+        # Leave non-text cells unchanged.
+        return value
+
     # * method: _assert_row_parity
     def _assert_row_parity(self,
             actual_rows: List[Dict[str, Any]],
@@ -369,7 +398,11 @@ class CitationH5Repository(CitationService, H5Repository):
             context: str,
         ) -> None:
         '''
-        Verify two row sets carry the same citations, by id and count.
+        Verify two row lists carry the same citations in the same order.
+
+        Compares row count, insertion order, and every field present on the
+        expected (pre-existing) rows. Columns added by a later schema are
+        ignored so a title-less legacy row is not required to invent a title.
 
         :param actual_rows: The rows read back after a copy or promotion.
         :type actual_rows: List[Dict[str, Any]]
@@ -377,13 +410,33 @@ class CitationH5Repository(CitationService, H5Repository):
         :type expected_rows: List[Dict[str, Any]]
         :param context: A short label identifying the check, for the error message.
         :type context: str
-        :raises RuntimeError: If the row count or id set does not match.
+        :raises RuntimeError: If count, order, or a pre-existing field does not match.
         '''
 
-        # A mismatched count or id set means a row was dropped or duplicated.
-        if len(actual_rows) != len(expected_rows) or \
-                self._row_ids(actual_rows) != self._row_ids(expected_rows):
+        # A mismatched count means a row was dropped or duplicated.
+        if len(actual_rows) != len(expected_rows):
             raise RuntimeError(
                 f'Citation table schema upgrade failed parity check ({context}): '
                 f'expected {len(expected_rows)} row(s), found {len(actual_rows)}.'
             )
+
+        # Compare insertion order and every pre-existing stored field.
+        for index, (actual, expected) in enumerate(zip(actual_rows, expected_rows)):
+            actual_id = self._comparable_cell(actual.get('id'))
+            expected_id = self._comparable_cell(expected.get('id'))
+            if actual_id != expected_id:
+                raise RuntimeError(
+                    f'Citation table schema upgrade failed parity check ({context}): '
+                    f'insertion order mismatch at index {index}: '
+                    f'expected id {expected_id!r}, found {actual_id!r}.'
+                )
+
+            for key, expected_value in expected.items():
+                actual_value = self._comparable_cell(actual.get(key))
+                comparable_expected = self._comparable_cell(expected_value)
+                if actual_value != comparable_expected:
+                    raise RuntimeError(
+                        f'Citation table schema upgrade failed parity check ({context}): '
+                        f'field {key!r} mismatch at index {index} '
+                        f'(id {expected_id!r}).'
+                    )

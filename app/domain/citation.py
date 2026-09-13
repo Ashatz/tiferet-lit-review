@@ -29,10 +29,10 @@ SLIDE_RANGE_LOCATOR_CONVENTION = 'slide_range'
 MAX_TITLE_BYTES = 256
 
 # ** constant: max_excerpt_bytes
-MAX_EXCERPT_BYTES = 16384
+MAX_EXCERPT_BYTES = 10_000_000
 
 # ** constant: max_context_note_bytes
-MAX_CONTEXT_NOTE_BYTES = 16384
+MAX_CONTEXT_NOTE_BYTES = 10_000_000
 
 # *** models
 

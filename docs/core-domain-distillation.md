@@ -336,7 +336,7 @@ and carries one locator, excerpt text, an optional surrounding-context note,
 and an optional citation title — a researcher-authored label for that specific
 excerpt, never the source's bibliographic title. `UpdateCitation` may replace
 or explicitly clear that title independently of the excerpt, locator, or
-context note. Evidence text is retained up to its declared 16,384-byte UTF-8
+context note. Evidence text is retained up to its declared 10,000,000-byte UTF-8
 capacity; an over-capacity value is rejected visibly rather than truncated.
 
 **Agnostic**: the shape of a citation — source reference, locator, excerpt,

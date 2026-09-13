@@ -5,14 +5,17 @@
 # ** infra
 import pytest
 import tables
+from pydantic import ValidationError
 
 # ** app
+from app.domain.citation import MAX_CONTEXT_NOTE_BYTES, MAX_EXCERPT_BYTES
 from app.mappers.citation import CitationAggregate, CitationTableObject
 from app.repos.citation import (
     CITATIONS_BACKUP_LEAF,
     CITATIONS_BACKUP_PATH,
     CITATIONS_STAGING_LEAF,
     CITATIONS_STAGING_PATH,
+    CITATIONS_TABLE_FILTERS,
     CITATIONS_TABLE_LEAF,
     CITATIONS_TABLE_PATH,
     CitationH5Repository,
@@ -38,6 +41,31 @@ LEGACY_ROW_TWO = {
     'excerpt': 'A second, unrelated excerpt.',
     'context_note': '',
     'created_at': 1700000100,
+}
+
+# ** constant: rfp9_text_column_bytes
+RFP9_TEXT_COLUMN_BYTES = 16384
+
+# ** constant: rfp9_row_one
+RFP9_ROW_ONE = {
+    'id': 'rfp9-citation-1',
+    'source_id': 'source-alpha',
+    'locator': '12-14',
+    'excerpt': 'Keep this excerpt exactly.',
+    'context_note': 'Keep this note exactly.',
+    'title': 'Exact title one',
+    'created_at': 1700000001,
+}
+
+# ** constant: rfp9_row_two
+RFP9_ROW_TWO = {
+    'id': 'rfp9-citation-2',
+    'source_id': 'source-beta',
+    'locator': '3-3',
+    'excerpt': 'Second excerpt, different source.',
+    'context_note': 'Second note, preserved as stored.',
+    'title': 'Exact title two',
+    'created_at': 1700000002,
 }
 
 # *** functions
@@ -140,6 +168,94 @@ def write_legacy_table(repo: CitationH5Repository, rows: list) -> None:
             row.append()
         table.flush()
 
+# ** function: rfp9_citation_description
+def rfp9_citation_description() -> type:
+    '''
+    Build the post-RFP-9 / pre-RFP-14 six-column citation table schema.
+
+    Carries title and the 16,384-byte excerpt / context_note widths that were
+    current before this capacity increase.
+
+    :return: A tables.IsDescription subclass at the RFP-9 text widths.
+    :rtype: type
+    '''
+
+    # Return a fresh class each call so PyTables never sees a shared type.
+    class Rfp9CitationDescription(tables.IsDescription):
+        id = tables.StringCol(64)
+        source_id = tables.StringCol(64)
+        locator = tables.StringCol(64)
+        excerpt = tables.StringCol(RFP9_TEXT_COLUMN_BYTES)
+        context_note = tables.StringCol(RFP9_TEXT_COLUMN_BYTES)
+        title = tables.StringCol(256)
+        created_at = tables.Int64Col()
+
+    return Rfp9CitationDescription
+
+# ** function: write_rfp9_table
+def write_rfp9_table(repo: CitationH5Repository, rows: list) -> None:
+    '''
+    Create a 16,384-byte text-width citations table with the given rows.
+
+    :param repo: The temporary citation repository.
+    :type repo: CitationH5Repository
+    :param rows: Plain field dicts matching the RFP-9 schema.
+    :type rows: list
+    '''
+
+    # Build the group and RFP-9-schema table directly through PyTables.
+    with repo.client() as h5:
+        parent = h5.create_group('/lit_review')
+        table = h5.h5file.create_table(parent, CITATIONS_TABLE_LEAF, rfp9_citation_description())
+        for data in rows:
+            row = table.row
+            row['id'] = data['id'].encode('utf-8')
+            row['source_id'] = data['source_id'].encode('utf-8')
+            row['locator'] = data['locator'].encode('utf-8')
+            row['excerpt'] = data['excerpt'].encode('utf-8')
+            row['context_note'] = data['context_note'].encode('utf-8')
+            row['title'] = data.get('title', '').encode('utf-8')
+            row['created_at'] = data['created_at']
+            row.append()
+        table.flush()
+
+# ** function: assert_current_compressed_schema
+def assert_current_compressed_schema(table) -> None:
+    '''
+    Assert the live table has 10,000,000-byte text columns and zlib complevel 5.
+
+    :param table: The open PyTables citations table.
+    :type table: Any
+    '''
+
+    # Widths and compression are the current on-disk contract.
+    assert table.coldtypes['excerpt'].itemsize == MAX_EXCERPT_BYTES
+    assert table.coldtypes['context_note'].itemsize == MAX_CONTEXT_NOTE_BYTES
+    assert table.filters.complib == 'zlib'
+    assert table.filters.complevel == 5
+
+# ** function: assert_stored_fields
+def assert_stored_fields(loaded: CitationAggregate, expected: dict) -> None:
+    '''
+    Assert every pre-existing stored field on a loaded citation matches.
+
+    :param loaded: The citation returned by get or list.
+    :type loaded: CitationAggregate
+    :param expected: The field dict originally written to the table.
+    :type expected: dict
+    '''
+
+    # Compare each stored field the expected row actually carried.
+    assert loaded.id == expected['id']
+    assert loaded.source_id == expected['source_id']
+    assert loaded.locator == expected['locator']
+    assert loaded.excerpt == expected['excerpt']
+    assert loaded.context_note == expected['context_note']
+    assert loaded.created_at == expected['created_at']
+    if 'title' in expected:
+        expected_title = expected['title'] or None
+        assert loaded.title == expected_title
+
 # *** fixtures
 
 # ** fixture: repo
@@ -239,11 +355,12 @@ def test_save_upgrades_legacy_table_preserving_existing_rows(repo):
     )
     repo.save(new_citation)
 
-    # The table now carries the title column and all three rows.
+    # The table now carries the current compressed schema and all three rows.
     with repo.client() as h5:
         table = h5.get_table(CITATIONS_TABLE_PATH)
         assert 'title' in table.colnames
         assert table.nrows == 3
+        assert_current_compressed_schema(table)
         assert not h5.node_exists(CITATIONS_STAGING_PATH)
         assert not h5.node_exists(CITATIONS_BACKUP_PATH)
 
@@ -274,7 +391,11 @@ def test_save_recovers_by_promoting_valid_staging(repo):
     write_legacy_table(repo, [LEGACY_ROW_ONE, LEGACY_ROW_TWO])
     with repo.client() as h5:
         legacy_rows = h5.read_rows(CITATIONS_TABLE_PATH)
-        staging_table = h5.create_table(CITATIONS_STAGING_PATH, CitationTableObject.get_description())
+        staging_table = h5.create_table(
+            CITATIONS_STAGING_PATH,
+            CitationTableObject.get_description(),
+            filters=CITATIONS_TABLE_FILTERS,
+        )
         for row in legacy_rows:
             CitationTableObject.from_row(row).to_row(staging_table)
         staging_table.flush()
@@ -301,11 +422,11 @@ def test_save_recovers_by_promoting_valid_staging(repo):
         LEGACY_ROW_ONE['id'], LEGACY_ROW_TWO['id'], 'new-citation',
     }
 
-# ** test_int: test_fresh_store_creates_16384_byte_text_columns
-def test_fresh_store_creates_16384_byte_text_columns(repo):
+# ** test_int: test_fresh_store_creates_compressed_10_000_000_byte_text_columns
+def test_fresh_store_creates_compressed_10_000_000_byte_text_columns(repo):
     '''
-    A fresh store creates excerpt/context_note columns at the current
-    16,384-byte capacity (AC #1).
+    A fresh store creates excerpt/context_note columns at 10,000,000 bytes
+    with zlib complevel 5 (AC #1).
 
     :param repo: The temporary citation repository.
     :type repo: CitationH5Repository
@@ -319,38 +440,46 @@ def test_fresh_store_creates_16384_byte_text_columns(repo):
         excerpt='An excerpt.',
     ))
 
-    # Both text columns are declared at the current 16,384-byte capacity.
+    # Both text columns are declared at the current compressed capacity.
     with repo.client() as h5:
         table = h5.get_table(CITATIONS_TABLE_PATH)
-        assert table.coldtypes['excerpt'].itemsize == 16384
-        assert table.coldtypes['context_note'].itemsize == 16384
+        assert_current_compressed_schema(table)
 
 # ** test_int: test_save_round_trips_exact_capacity_boundary
 def test_save_round_trips_exact_capacity_boundary(repo):
     '''
-    Excerpt and context note text exactly at the 16,384-byte cap round-trip
-    byte for byte (AC #2).
+    ASCII and multi-byte UTF-8 text exactly at the 10,000,000-byte cap
+    round-trip byte for byte; get/list return the full Citation (AC #2, #6).
 
     :param repo: The temporary citation repository.
     :type repo: CitationH5Repository
     '''
 
-    # Build multi-byte UTF-8 text landing exactly at the byte cap.
-    exact_excerpt = ('é' * 8192)  # 2 bytes each == 16384 bytes.
-    exact_note = 'x' * 16384
+    # ASCII excerpt and multi-byte UTF-8 note, each exactly at the byte cap.
+    exact_excerpt = 'x' * MAX_EXCERPT_BYTES
+    exact_note = 'é' * (MAX_CONTEXT_NOTE_BYTES // 2)
+    assert len(exact_excerpt.encode('utf-8')) == MAX_EXCERPT_BYTES
+    assert len(exact_note.encode('utf-8')) == MAX_CONTEXT_NOTE_BYTES
     citation = CitationAggregate(
         id='boundary-citation',
         source_id='source-1',
         locator='1-1',
         excerpt=exact_excerpt,
         context_note=exact_note,
+        title='Full citation',
     )
     repo.save(citation)
 
-    # The reloaded citation carries both fields exactly as saved.
+    # get and list both return the full Citation, byte for byte.
     reloaded = repo.get('boundary-citation')
+    listed = repo.list()
+    assert isinstance(reloaded, CitationAggregate)
     assert reloaded.excerpt == exact_excerpt
     assert reloaded.context_note == exact_note
+    assert reloaded.title == 'Full citation'
+    assert len(listed) == 1
+    assert listed[0].excerpt == exact_excerpt
+    assert listed[0].context_note == exact_note
 
 # ** test_int: test_save_upgrades_table_with_undersized_text_columns
 def test_save_upgrades_table_with_undersized_text_columns(repo):
@@ -375,11 +504,10 @@ def test_save_upgrades_table_with_undersized_text_columns(repo):
     )
     repo.save(new_citation)
 
-    # The table is upgraded to the current width; all rows are preserved.
+    # The table is upgraded to the current compressed width; all rows are preserved.
     with repo.client() as h5:
         table = h5.get_table(CITATIONS_TABLE_PATH)
-        assert table.coldtypes['excerpt'].itemsize == 16384
-        assert table.coldtypes['context_note'].itemsize == 16384
+        assert_current_compressed_schema(table)
         assert table.nrows == 3
         assert not h5.node_exists(CITATIONS_STAGING_PATH)
         assert not h5.node_exists(CITATIONS_BACKUP_PATH)
@@ -420,6 +548,141 @@ def test_save_recovers_by_rolling_back_when_staging_missing(repo):
         table = h5.get_table(CITATIONS_TABLE_PATH)
         assert table.nrows == 3
         assert 'title' in table.colnames
+        assert_current_compressed_schema(table)
     assert {c.id for c in repo.list()} == {
         LEGACY_ROW_ONE['id'], LEGACY_ROW_TWO['id'], 'new-citation',
     }
+
+# ** test_int: test_oversize_text_rejected_before_row_changes
+def test_oversize_text_rejected_before_row_changes(repo):
+    '''
+    10,000,001 UTF-8 bytes is rejected before any citation row changes (AC #2).
+
+    :param repo: The temporary citation repository.
+    :type repo: CitationH5Repository
+    '''
+
+    # Persist a valid citation that must remain untouched.
+    original = CitationAggregate(
+        id='kept-citation',
+        source_id='source-1',
+        locator='1-1',
+        excerpt='Keep this excerpt.',
+        context_note='Keep this note.',
+    )
+    repo.save(original)
+
+    # ASCII and multi-byte values one byte over the cap cannot be constructed.
+    with pytest.raises(ValidationError):
+        CitationAggregate(
+            id='oversize-ascii',
+            source_id='source-1',
+            locator='2-2',
+            excerpt='x' * (MAX_EXCERPT_BYTES + 1),
+        )
+    with pytest.raises(ValidationError):
+        CitationAggregate(
+            id='oversize-utf8',
+            source_id='source-1',
+            locator='3-3',
+            excerpt='Keep this excerpt.',
+            context_note=('é' * (MAX_CONTEXT_NOTE_BYTES // 2) + 'y'),
+        )
+
+    # The live table still has only the original row, untruncated.
+    with repo.client() as h5:
+        table = h5.get_table(CITATIONS_TABLE_PATH)
+        assert table.nrows == 1
+    kept = repo.get('kept-citation')
+    assert kept.excerpt == 'Keep this excerpt.'
+    assert kept.context_note == 'Keep this note.'
+    assert repo.get('oversize-ascii') is None
+    assert repo.get('oversize-utf8') is None
+
+# ** test_int: test_save_migrates_16384_byte_table_preserving_every_field
+def test_save_migrates_16384_byte_table_preserving_every_field(repo):
+    '''
+    A 16,384-byte table migrates without lost, duplicated, reordered, or
+    modified stored rows; the live table has zlib complevel 5 and the new
+    widths. get/list return the full Citation (AC #3, #5, #6).
+
+    :param repo: The temporary citation repository.
+    :type repo: CitationH5Repository
+    '''
+
+    # Build a synthetic RFP-9 table with two fully populated rows.
+    write_rfp9_table(repo, [RFP9_ROW_ONE, RFP9_ROW_TWO])
+
+    # Save a new citation to trigger the width-aware copy-on-write upgrade.
+    new_citation = CitationAggregate(
+        id='new-citation',
+        source_id='source-gamma',
+        locator='8-8',
+        excerpt='A freshly captured excerpt.',
+        title='New evidence',
+    )
+    repo.save(new_citation)
+
+    # The live table is compressed at the new widths; upgrade debris is gone.
+    with repo.client() as h5:
+        table = h5.get_table(CITATIONS_TABLE_PATH)
+        assert_current_compressed_schema(table)
+        assert table.nrows == 3
+        assert not h5.node_exists(CITATIONS_STAGING_PATH)
+        assert not h5.node_exists(CITATIONS_BACKUP_PATH)
+
+    # Insertion order and every pre-existing field are preserved exactly.
+    listed = repo.list()
+    assert [citation.id for citation in listed] == [
+        RFP9_ROW_ONE['id'],
+        RFP9_ROW_TWO['id'],
+        'new-citation',
+    ]
+    assert isinstance(listed[0], CitationAggregate)
+    assert_stored_fields(listed[0], RFP9_ROW_ONE)
+    assert_stored_fields(listed[1], RFP9_ROW_TWO)
+    assert_stored_fields(repo.get(RFP9_ROW_ONE['id']), RFP9_ROW_ONE)
+    assert_stored_fields(repo.get(RFP9_ROW_TWO['id']), RFP9_ROW_TWO)
+    third = repo.get('new-citation')
+    assert third.title == 'New evidence'
+    assert third.excerpt == 'A freshly captured excerpt.'
+
+# ** test_int: test_interruption_before_promotion_leaves_16384_table_readable
+def test_interruption_before_promotion_leaves_16384_table_readable(repo):
+    '''
+    A forced interruption before promotion leaves the original 16,384-byte
+    table readable via get and list (AC #4).
+
+    :param repo: The temporary citation repository.
+    :type repo: CitationH5Repository
+    '''
+
+    # Build a 16,384-byte table, then hand-simulate an upgrade interrupted
+    # after staging was written but before the live table was displaced.
+    write_rfp9_table(repo, [RFP9_ROW_ONE, RFP9_ROW_TWO])
+    with repo.client() as h5:
+        legacy_rows = h5.read_rows(CITATIONS_TABLE_PATH)
+        staging_table = h5.create_table(
+            CITATIONS_STAGING_PATH,
+            CitationTableObject.get_description(),
+            filters=CITATIONS_TABLE_FILTERS,
+        )
+        for row in legacy_rows:
+            CitationTableObject.from_row(row).to_row(staging_table)
+        staging_table.flush()
+
+    # Reads must still resolve the original table at its original widths.
+    fetched = repo.get(RFP9_ROW_ONE['id'])
+    listed = repo.list()
+    assert_stored_fields(fetched, RFP9_ROW_ONE)
+    assert [citation.id for citation in listed] == [
+        RFP9_ROW_ONE['id'],
+        RFP9_ROW_TWO['id'],
+    ]
+    assert_stored_fields(listed[1], RFP9_ROW_TWO)
+    with repo.client() as h5:
+        table = h5.get_table(CITATIONS_TABLE_PATH)
+        assert table.coldtypes['excerpt'].itemsize == RFP9_TEXT_COLUMN_BYTES
+        assert table.coldtypes['context_note'].itemsize == RFP9_TEXT_COLUMN_BYTES
+        assert h5.node_exists(CITATIONS_STAGING_PATH)
+        assert not h5.node_exists(CITATIONS_BACKUP_PATH)
