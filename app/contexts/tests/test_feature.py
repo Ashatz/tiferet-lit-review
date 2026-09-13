@@ -418,3 +418,154 @@ def test_cli_session_uses_lit_review_feature_context(app_home):
     assert constructed
     assert type(constructed[0]) is LitReviewFeatureContext
     assert constructed[0].domain.id == 'project.list'
+
+
+# ** test: test_source_copy_missing_to_fails_before_store_write
+def test_source_copy_missing_to_fails_before_store_write(app_home):
+    '''
+    source copy without --to fails before any dest store write.
+    '''
+
+    # Create origin and dest projects, then copy without dest.
+    session = build_app()
+    session.run(
+        'project.add',
+        data={
+            'id': 'alpha',
+            'name': 'Alpha',
+            'h5_file': str(app_home / 'alpha.h5'),
+        },
+    )
+    added = session.run(
+        'source.add',
+        data={
+            'project_id': 'alpha',
+            'medium': 'pdf',
+            'authors': ['Lattner, C.'],
+            'year': 2020,
+            'title': 'MLIR',
+        },
+    )
+
+    with pytest.raises(TiferetAPIError) as exc_info:
+        session.run(
+            'source.copy',
+            data={
+                'project_id': 'alpha',
+                'id': added.id,
+            },
+        )
+
+    # Missing --to is a required-parameter error; origin is unchanged.
+    assert exc_info.value.error_code == COMMAND_PARAMETER_REQUIRED_ID
+    assert session.run('source.list', data={'project_id': 'alpha'})
+
+
+# ** test: test_source_copy_unknown_dest_fails_through_catalog
+def test_source_copy_unknown_dest_fails_through_catalog(app_home):
+    '''
+    source copy against an unknown dest project fails through catalog lookup.
+    '''
+
+    # Create only the origin project.
+    session = build_app()
+    session.run(
+        'project.add',
+        data={
+            'id': 'alpha',
+            'name': 'Alpha',
+            'h5_file': str(app_home / 'alpha.h5'),
+        },
+    )
+    added = session.run(
+        'source.add',
+        data={
+            'project_id': 'alpha',
+            'medium': 'pdf',
+            'authors': ['Lattner, C.'],
+            'year': 2020,
+            'title': 'MLIR',
+        },
+    )
+
+    with pytest.raises(TiferetAPIError) as exc_info:
+        session.run(
+            'source.copy',
+            data={
+                'project_id': 'alpha',
+                'id': added.id,
+                'to': 'missing',
+            },
+        )
+
+    # Dest lookup uses PROJECT_NOT_FOUND; origin is unchanged.
+    assert exc_info.value.error_code == PROJECT_NOT_FOUND_ID
+    listed = session.run('source.list', data={'project_id': 'alpha'})
+    assert any(item.id == added.id for item in listed)
+
+
+# ** test: test_source_copy_via_app_and_cli
+def test_source_copy_via_app_and_cli(app_home):
+    '''
+    source copy PROJECT_ID SOURCE_ID --to DEST_PROJECT_ID writes dest only.
+    '''
+
+    # Create two catalogued stores and a source on origin.
+    session = build_app()
+    session.run(
+        'project.add',
+        data={
+            'id': 'alpha',
+            'name': 'Alpha',
+            'h5_file': str(app_home / 'alpha.h5'),
+        },
+    )
+    session.run(
+        'project.add',
+        data={
+            'id': 'beta',
+            'name': 'Beta',
+            'h5_file': str(app_home / 'beta.h5'),
+        },
+    )
+    added = session.run(
+        'source.add',
+        data={
+            'project_id': 'alpha',
+            'medium': 'pdf',
+            'authors': ['Lattner, C.'],
+            'year': 2020,
+            'title': 'MLIR',
+        },
+    )
+
+    # Copy through the App session, then again through CLI against a second pair.
+    copied = session.run(
+        'source.copy',
+        data={
+            'project_id': 'alpha',
+            'id': added.id,
+            'to': 'beta',
+        },
+    )
+    alpha_sources = session.run('source.list', data={'project_id': 'alpha'})
+    beta_sources = session.run('source.list', data={'project_id': 'beta'})
+    assert copied.id == added.id
+    assert any(item.id == added.id for item in alpha_sources)
+    assert any(item.id == added.id for item in beta_sources)
+
+    # CLI copy of a different source uses the same --to dest flag.
+    second = session.run(
+        'source.add',
+        data={
+            'project_id': 'alpha',
+            'medium': 'book',
+            'authors': ['Example, A.'],
+            'year': 2021,
+            'title': 'Another Work',
+        },
+    )
+    build_cli(argv=['source', 'copy', 'alpha', second.id, '--to', 'beta'])
+    beta_sources = session.run('source.list', data={'project_id': 'beta'})
+    assert any(item.id == second.id for item in beta_sources)
+    assert session.run('source.list', data={'project_id': 'alpha'})

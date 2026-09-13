@@ -22,6 +22,21 @@ CATALOG_FEATURE_PREFIX = 'project.'
 # ** constant: project_service_id
 PROJECT_SERVICE_ID = 'project_service'
 
+# ** constant: transfer_feature_ids
+TRANSFER_FEATURE_IDS = (
+    'source.copy',
+    'source.move',
+    'citation.copy',
+    'citation.move',
+)
+
+# ** constant: dest_service_ids
+DEST_SERVICE_IDS = {
+    'dest_source_service': 'source_service',
+    'dest_citation_service': 'citation_service',
+    'dest_activity_service': 'activity_service',
+}
+
 # *** contexts
 
 # ** context: lit_review_feature_context
@@ -109,6 +124,55 @@ class LitReviewFeatureContext(FeatureContext):
             project.h5_file,
         )
 
+    # * method: _bind_dest_store
+    def _bind_dest_store(self,
+            request: RequestContext,
+            feature_id: str,
+            catalog_get_dependency: Callable,
+        ) -> None:
+        '''
+        Look up the destination project and inject dest store services.
+
+        Missing destination project fails through the same catalog lookup
+        used for origin ``project_id``.
+
+        :param request: The inbound request carrying ``to``.
+        :type request: RequestContext
+        :param feature_id: The feature identifier used in missing-parameter errors.
+        :type feature_id: str
+        :param catalog_get_dependency: The unbound catalog service getter.
+        :type catalog_get_dependency: Callable
+        '''
+
+        # Require --to before any dest container build or store write.
+        dest_project_id = (request.data or {}).get('to')
+        if not isinstance(dest_project_id, str) or not dest_project_id.strip():
+            TiferetError.raise_error(
+                COMMAND_PARAMETER_REQUIRED_ID,
+                f'The required parameter to for command {feature_id} is missing.',
+                parameter='to',
+                command=feature_id,
+            )
+
+        # Look up the dest catalog row through the unbound catalog container.
+        project_service = catalog_get_dependency(PROJECT_SERVICE_ID)
+        dest_project = project_service.get(dest_project_id)
+        if dest_project is None:
+            TiferetError.raise_error(
+                PROJECT_NOT_FOUND_ID,
+                f'Project not found: {dest_project_id}.',
+                id=dest_project_id,
+            )
+
+        # Resolve dest store services from a project-scoped h5_file override.
+        dest_get_dependency = self.get_project_dependency(
+            dest_project.id,
+            dest_project.h5_file,
+        )
+        self.context_data = dict(self.context_data or {})
+        for dest_key, service_id in DEST_SERVICE_IDS.items():
+            self.context_data[dest_key] = dest_get_dependency(service_id)
+
     # * method: execute_feature
     def execute_feature(self, request: RequestContext, *flags, **kwargs):
         '''
@@ -125,7 +189,14 @@ class LitReviewFeatureContext(FeatureContext):
         # Catalog commands do not bind a research store.
         feature = self.domain
         if not (feature.id or '').startswith(CATALOG_FEATURE_PREFIX):
+            catalog_get_dependency = self.get_dependency
             self._bind_project_store(request, feature.id)
+            if feature.id in TRANSFER_FEATURE_IDS:
+                self._bind_dest_store(
+                    request,
+                    feature.id,
+                    catalog_get_dependency,
+                )
 
         # Delegate step execution to the stock feature loop.
         super().execute_feature(request, *flags, **kwargs)

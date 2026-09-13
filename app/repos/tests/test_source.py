@@ -212,3 +212,25 @@ def test_overview_note_round_trips_and_legacy_source_stays_compatible(repo):
     assert persisted_legacy.overview_note == 'Added after the fact.'
     assert persisted_legacy.title == 'Legacy Book'
     assert persisted_legacy.authors[0].display_name == 'Legacy, A.'
+
+
+# ** test_int: test_remove_for_transfer_drops_source_group_and_document
+def test_remove_for_transfer_drops_source_group_and_document(repo, source):
+    '''
+    Origin-only transfer remove drops the source group and its document array.
+
+    :param repo: The temporary source repository.
+    :type repo: SourceH5Repository
+    :param source: The source fixture.
+    :type source: SourceAggregate
+    '''
+
+    # Persist metadata and a document array, then remove for transfer.
+    repo.save(source)
+    repo.save_document(SOURCE_ID, FIRST_BYTES)
+    repo.remove_for_transfer(SOURCE_ID)
+
+    # The source group and document array are both gone.
+    assert repo.get(SOURCE_ID) is None
+    assert repo.has_document(SOURCE_ID) is False
+    assert repo.exists(SOURCE_ID) is False

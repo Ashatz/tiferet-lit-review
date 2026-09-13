@@ -57,6 +57,21 @@ LINKAGE_RETIRED_ACTION = 'linkage.retired'
 # ** constant: linkage_reinstated_action
 LINKAGE_REINSTATED_ACTION = 'linkage.reinstated'
 
+# ** constant: source_copied_action
+SOURCE_COPIED_ACTION = 'source.copied'
+
+# ** constant: source_moved_action
+SOURCE_MOVED_ACTION = 'source.moved'
+
+# ** constant: citation_copied_action
+CITATION_COPIED_ACTION = 'citation.copied'
+
+# ** constant: citation_moved_action
+CITATION_MOVED_ACTION = 'citation.moved'
+
+# ** constant: project_related_type
+PROJECT_RELATED_TYPE = 'project'
+
 # *** models
 
 # ** model: activity_entry

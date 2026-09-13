@@ -133,6 +133,34 @@ class CitationH5Repository(CitationService, H5Repository):
         # Map each row to a citation aggregate, preserving insertion order.
         return [CitationTableObject.from_row(row).map(CitationAggregate) for row in rows]
 
+    # * method: remove_for_transfer
+    def remove_for_transfer(self, id: str) -> None:
+        '''
+        Remove an origin citation row as the last step of a move.
+
+        This helper is repository-private. It is not part of CitationService
+        and is not a general-purpose delete API.
+
+        :param id: The origin citation identifier to remove.
+        :type id: str
+        '''
+
+        # Drop only the matching row; the parent source group is untouched.
+        with self.client() as h5:
+            if not h5.node_exists(CITATIONS_TABLE_PATH):
+                return
+            table = h5.get_table(CITATIONS_TABLE_PATH)
+            target_id = CitationTableObject.encode_value(
+                id,
+                CitationTableObject._H5_TYPES['id'],
+            )
+            for index in range(table.nrows):
+                if table.cols.id[index] != target_id:
+                    continue
+                table.remove_rows(index, index + 1)
+                table.flush()
+                return
+
     # * method: save
     def save(self, citation: CitationAggregate) -> None:
         '''

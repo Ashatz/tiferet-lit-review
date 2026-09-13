@@ -686,3 +686,37 @@ def test_interruption_before_promotion_leaves_16384_table_readable(repo):
         assert table.coldtypes['context_note'].itemsize == RFP9_TEXT_COLUMN_BYTES
         assert h5.node_exists(CITATIONS_STAGING_PATH)
         assert not h5.node_exists(CITATIONS_BACKUP_PATH)
+
+
+# ** test_int: test_remove_for_transfer_drops_only_the_citation_row
+def test_remove_for_transfer_drops_only_the_citation_row(repo):
+    '''
+    Origin-only transfer remove drops the matching citation row and leaves others.
+
+    :param repo: The temporary citation repository.
+    :type repo: CitationH5Repository
+    '''
+
+    # Persist two citations, then remove one for transfer.
+    first = CitationAggregate(
+        id='keep-citation',
+        source_id='source-1',
+        locator='1-1',
+        excerpt='Keep this excerpt.',
+    )
+    second = CitationAggregate(
+        id='move-citation',
+        source_id='source-1',
+        locator='2-2',
+        excerpt='Move this excerpt.',
+    )
+    repo.save(first)
+    repo.save(second)
+    repo.remove_for_transfer('move-citation')
+
+    # Only the transferred row is gone; the sibling row remains.
+    assert repo.get('move-citation') is None
+    kept = repo.get('keep-citation')
+    assert kept is not None
+    assert kept.excerpt == 'Keep this excerpt.'
+    assert [citation.id for citation in repo.list()] == ['keep-citation']

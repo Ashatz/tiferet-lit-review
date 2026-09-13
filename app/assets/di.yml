@@ -49,6 +49,12 @@ services:
   download_source_document_event:
     module_path: app.events.source
     class_name: DownloadSourceDocument
+  copy_source_event:
+    module_path: app.events.transfer
+    class_name: CopySource
+  move_source_event:
+    module_path: app.events.transfer
+    class_name: MoveSource
   add_citation_event:
     module_path: app.events.citation
     class_name: AddCitation
@@ -61,6 +67,12 @@ services:
   update_citation_event:
     module_path: app.events.citation
     class_name: UpdateCitation
+  copy_citation_event:
+    module_path: app.events.transfer
+    class_name: CopyCitation
+  move_citation_event:
+    module_path: app.events.transfer
+    class_name: MoveCitation
   citation_style_service:
     module_path: app.repos.citation_style
     class_name: CitationStyleConfigRepository

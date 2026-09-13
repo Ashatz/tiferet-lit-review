@@ -55,6 +55,20 @@ features:
           params:
             source_id: $r.id
             out: $r.out
+    copy:
+      name: Copy Source
+      steps:
+        - name: Copy Source
+          service_id: copy_source_event
+          params:
+            dest_project_id: $r.to
+    move:
+      name: Move Source
+      steps:
+        - name: Move Source
+          service_id: move_source_event
+          params:
+            dest_project_id: $r.to
   citation:
     add:
       name: Add Citation
@@ -79,6 +93,20 @@ features:
           params:
             citation_id: $r.id
             style_id: $r.style
+    copy:
+      name: Copy Citation
+      steps:
+        - name: Copy Citation
+          service_id: copy_citation_event
+          params:
+            dest_project_id: $r.to
+    move:
+      name: Move Citation
+      steps:
+        - name: Move Citation
+          service_id: move_citation_event
+          params:
+            dest_project_id: $r.to
   theme:
     add:
       name: Add Theme

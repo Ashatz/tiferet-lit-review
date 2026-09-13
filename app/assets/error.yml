@@ -74,3 +74,28 @@ errors:
     message:
       - lang: en_US
         text: "Citation style not found: {id}."
+  TRANSFER_SAME_PROJECT:
+    name: Transfer Same Project
+    message:
+      - lang: en_US
+        text: "Origin and destination project must be different."
+  SOURCE_ALREADY_EXISTS:
+    name: Source Already Exists
+    message:
+      - lang: en_US
+        text: "A source with ID {id} already exists in the destination project."
+  CITATION_ALREADY_EXISTS:
+    name: Citation Already Exists
+    message:
+      - lang: en_US
+        text: "A citation with ID {id} already exists in the destination project."
+  SOURCE_IDENTITY_CONFLICT:
+    name: Source Identity Conflict
+    message:
+      - lang: en_US
+        text: "Destination already has a different source at ID {id}."
+  SOURCE_HAS_CITATIONS:
+    name: Source Has Citations
+    message:
+      - lang: en_US
+        text: "Cannot move source {id} while citations still reference it."
