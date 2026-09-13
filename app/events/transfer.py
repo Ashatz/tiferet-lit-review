@@ -80,7 +80,6 @@ def clone_source(source: SourceAggregate) -> SourceAggregate:
     # Return the id-preserving clone.
     return clone
 
-
 # ** function: clone_citation
 def clone_citation(citation: CitationAggregate) -> CitationAggregate:
     '''
@@ -102,7 +101,6 @@ def clone_citation(citation: CitationAggregate) -> CitationAggregate:
         title=citation.title,
         created_at=citation.created_at,
     )
-
 
 # ** function: bibliographic_identity_matches
 def bibliographic_identity_matches(
@@ -132,7 +130,6 @@ def bibliographic_identity_matches(
         and left.container_title == right.container_title
         and left.publisher == right.publisher
     )
-
 
 # ** function: source_content_matches
 def source_content_matches(
@@ -184,7 +181,6 @@ def source_content_matches(
     # Dest holds a matching source copy.
     return True
 
-
 # ** function: citation_content_matches
 def citation_content_matches(
         origin: CitationAggregate,
@@ -214,7 +210,6 @@ def citation_content_matches(
         and dest.context_note == origin.context_note
         and dest.title == origin.title
     )
-
 
 # ** function: write_source_copy
 def write_source_copy(
@@ -248,7 +243,6 @@ def write_source_copy(
 
     # Return the dest clone.
     return clone
-
 
 # ** function: record_transfer_activity
 def record_transfer_activity(
@@ -288,7 +282,6 @@ def record_transfer_activity(
         related_type=related_type,
         related_id=related_project_id,
     ))
-
 
 # ** function: remove_origin_artifact
 def remove_origin_artifact(service, artifact_id: str) -> None:
@@ -409,7 +402,6 @@ class CopySource(SourceEvent):
 
         # Return the dest source.
         return copied
-
 
 # ** event: move_source
 class MoveSource(SourceEvent):
@@ -565,7 +557,6 @@ class MoveSource(SourceEvent):
 
         # Return the dest source.
         return dest
-
 
 # ** event: copy_citation
 class CopyCitation(CitationEvent):
@@ -748,7 +739,6 @@ class CopyCitation(CitationEvent):
             parent.id,
             related_project_id=project_id,
         )
-
 
 # ** event: move_citation
 class MoveCitation(CopyCitation):

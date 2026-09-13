@@ -78,7 +78,6 @@ def origin_source_repo(tmp_path) -> SourceH5Repository:
     # Return a repository pointing at an isolated origin store.
     return SourceH5Repository(h5_file=str(tmp_path / 'origin.h5'))
 
-
 # ** fixture: dest_source_repo
 @pytest.fixture
 def dest_source_repo(tmp_path) -> SourceH5Repository:
@@ -93,7 +92,6 @@ def dest_source_repo(tmp_path) -> SourceH5Repository:
 
     # Return a repository pointing at an isolated dest store.
     return SourceH5Repository(h5_file=str(tmp_path / 'dest.h5'))
-
 
 # ** fixture: origin_citation_repo
 @pytest.fixture
@@ -110,7 +108,6 @@ def origin_citation_repo(tmp_path) -> CitationH5Repository:
     # Share the origin store path with the origin source repository.
     return CitationH5Repository(h5_file=str(tmp_path / 'origin.h5'))
 
-
 # ** fixture: dest_citation_repo
 @pytest.fixture
 def dest_citation_repo(tmp_path) -> CitationH5Repository:
@@ -125,7 +122,6 @@ def dest_citation_repo(tmp_path) -> CitationH5Repository:
 
     # Share the dest store path with the dest source repository.
     return CitationH5Repository(h5_file=str(tmp_path / 'dest.h5'))
-
 
 # ** fixture: origin_activity_repo
 @pytest.fixture
@@ -142,7 +138,6 @@ def origin_activity_repo(tmp_path) -> ActivityH5Repository:
     # Share the origin store path with the other origin repositories.
     return ActivityH5Repository(h5_file=str(tmp_path / 'origin.h5'))
 
-
 # ** fixture: dest_activity_repo
 @pytest.fixture
 def dest_activity_repo(tmp_path) -> ActivityH5Repository:
@@ -157,7 +152,6 @@ def dest_activity_repo(tmp_path) -> ActivityH5Repository:
 
     # Share the dest store path with the other dest repositories.
     return ActivityH5Repository(h5_file=str(tmp_path / 'dest.h5'))
-
 
 # ** fixture: source
 @pytest.fixture
@@ -180,7 +174,6 @@ def source() -> SourceAggregate:
     )
     result.add_author('Lattner, C.')
     return result
-
 
 # ** fixture: citation
 @pytest.fixture
@@ -235,7 +228,6 @@ def copy_source(
         dest_activity_service=dest_activity_repo,
     )
 
-
 # ** function: move_source
 def move_source(
         origin_source_repo,
@@ -265,7 +257,6 @@ def move_source(
         dest_source_service=dest_source_repo,
         dest_activity_service=dest_activity_repo,
     )
-
 
 # ** function: copy_citation
 def copy_citation(
@@ -297,7 +288,6 @@ def copy_citation(
         dest_source_service=dest_source_repo,
         dest_activity_service=dest_activity_repo,
     )
-
 
 # ** function: move_citation
 def move_citation(
@@ -367,7 +357,6 @@ def test_copy_source_without_document_preserves_id_and_origin(
     assert origin.title == source.title
     assert origin_source_repo.has_document(SOURCE_ID) is False
 
-
 # ** test: test_copy_source_with_document_matches_origin_bytes
 def test_copy_source_with_document_matches_origin_bytes(
         origin_source_repo,
@@ -391,7 +380,6 @@ def test_copy_source_with_document_matches_origin_bytes(
     assert dest_source_repo.has_document(SOURCE_ID) is True
     assert dest_source_repo.get_document(SOURCE_ID) == DOCUMENT_BYTES
     assert origin_source_repo.get_document(SOURCE_ID) == DOCUMENT_BYTES
-
 
 # ** test: test_copy_citation_auto_copies_missing_parent_source
 def test_copy_citation_auto_copies_missing_parent_source(
@@ -432,7 +420,6 @@ def test_copy_citation_auto_copies_missing_parent_source(
     assert dest_source.title == source.title
     assert dest_source.document_name == 'lattner_2020_mlir.pdf'
     assert dest_source_repo.get_document(SOURCE_ID) == DOCUMENT_BYTES
-
 
 # ** test: test_dest_id_collision_fails_without_overwrite
 def test_dest_id_collision_fails_without_overwrite(
@@ -508,7 +495,6 @@ def test_dest_id_collision_fails_without_overwrite(
     assert citation_exc.value.error_code == CITATION_ALREADY_EXISTS_ID
     assert dest_citation_repo.get(CITATION_ID).excerpt == 'Already here.'
 
-
 # ** test: test_copy_citation_reuses_matching_parent_without_rewrite
 def test_copy_citation_reuses_matching_parent_without_rewrite(
         origin_source_repo,
@@ -553,7 +539,6 @@ def test_copy_citation_reuses_matching_parent_without_rewrite(
     assert reused.document_name == 'dest-original.pdf'
     assert dest_source_repo.get_document(SOURCE_ID) == b'dest-only-bytes'
     assert dest_citation_repo.get(CITATION_ID).id == CITATION_ID
-
 
 # ** test: test_move_source_and_citation_remove_origin_only
 def test_move_source_and_citation_remove_origin_only(
@@ -617,7 +602,6 @@ def test_move_source_and_citation_remove_origin_only(
     assert dest.document_name == 'lattner_2020_mlir.pdf'
     assert dest_source_repo.get_document(SOURCE_ID) == DOCUMENT_BYTES
 
-
 # ** test: test_crash_after_dest_write_then_retried_move
 def test_crash_after_dest_write_then_retried_move(
         origin_source_repo,
@@ -662,7 +646,6 @@ def test_crash_after_dest_write_then_retried_move(
     )
     assert origin_source_repo.get(SOURCE_ID) is None
     assert dest_source_repo.get(SOURCE_ID).title == source.title
-
 
 # ** test: test_dest_citation_is_unlinked_and_history_is_not_copied
 def test_dest_citation_is_unlinked_and_history_is_not_copied(
@@ -721,7 +704,6 @@ def test_dest_citation_is_unlinked_and_history_is_not_copied(
     assert CITATION_COPIED_ACTION in dest_actions
     assert dest_actions.count(SOURCE_COPIED_ACTION) == 1
 
-
 # ** test: test_activity_failure_leaves_transfer_intact
 def test_activity_failure_leaves_transfer_intact(
         origin_source_repo,
@@ -760,7 +742,6 @@ def test_activity_failure_leaves_transfer_intact(
     )
     assert origin_source_repo.get(SOURCE_ID) is None
     assert dest_source_repo.get(SOURCE_ID) is not None
-
 
 # ** test: test_same_project_and_missing_origin_fail
 def test_same_project_and_missing_origin_fail(
@@ -806,7 +787,6 @@ def test_same_project_and_missing_origin_fail(
         )
     assert missing_citation.value.error_code == 'CITATION_NOT_FOUND'
 
-
 # ** test: test_retried_copy_still_fails_on_dest_occupancy
 def test_retried_copy_still_fails_on_dest_occupancy(
         origin_source_repo,
@@ -825,7 +805,6 @@ def test_retried_copy_still_fails_on_dest_occupancy(
         copy_source(origin_source_repo, dest_source_repo, dest_activity_repo)
     assert occupied.value.error_code == SOURCE_ALREADY_EXISTS_ID
     assert origin_source_repo.get(SOURCE_ID) is not None
-
 
 # ** test: test_copy_source_does_not_copy_citations
 def test_copy_source_does_not_copy_citations(
@@ -847,7 +826,6 @@ def test_copy_source_does_not_copy_citations(
     copy_source(origin_source_repo, dest_source_repo, dest_activity_repo)
     assert dest_source_repo.get(SOURCE_ID) is not None
     assert dest_citation_repo.list(source_id=SOURCE_ID) == []
-
 
 # ** test: test_transfer_activity_tokens_and_related_project
 def test_transfer_activity_tokens_and_related_project(
@@ -878,7 +856,6 @@ def test_transfer_activity_tokens_and_related_project(
     assert dest_entry.related_id == ORIGIN_PROJECT_ID
     assert origin_entry.related_type == PROJECT_RELATED_TYPE
     assert origin_entry.related_id == DEST_PROJECT_ID
-
 
 # ** test: test_interfaces_do_not_expose_delete
 def test_interfaces_do_not_expose_delete():

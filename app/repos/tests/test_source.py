@@ -213,7 +213,6 @@ def test_overview_note_round_trips_and_legacy_source_stays_compatible(repo):
     assert persisted_legacy.title == 'Legacy Book'
     assert persisted_legacy.authors[0].display_name == 'Legacy, A.'
 
-
 # ** test_int: test_remove_for_transfer_drops_source_group_and_document
 def test_remove_for_transfer_drops_source_group_and_document(repo, source):
     '''

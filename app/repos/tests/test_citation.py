@@ -687,7 +687,6 @@ def test_interruption_before_promotion_leaves_16384_table_readable(repo):
         assert h5.node_exists(CITATIONS_STAGING_PATH)
         assert not h5.node_exists(CITATIONS_BACKUP_PATH)
 
-
 # ** test_int: test_remove_for_transfer_drops_only_the_citation_row
 def test_remove_for_transfer_drops_only_the_citation_row(repo):
     '''
