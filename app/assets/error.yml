@@ -1,4 +1,14 @@
 errors:
+  PROJECT_NOT_FOUND:
+    name: Project Not Found
+    message:
+      - lang: en_US
+        text: "Project not found: {id}."
+  PROJECT_ALREADY_EXISTS:
+    name: Project Already Exists
+    message:
+      - lang: en_US
+        text: "A project with ID {id} already exists."
   SOURCE_NOT_FOUND:
     name: Source Not Found
     message:

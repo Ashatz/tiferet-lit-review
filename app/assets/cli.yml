@@ -1,11 +1,38 @@
 cli:
   cmds:
+    project:
+      add:
+        name: Add Project
+        key: add
+        group_key: project
+        args:
+          - name_or_flags: ["id"]
+            description: "The unique project identifier."
+          - name_or_flags: ["-n", "--name"]
+            required: true
+            description: "The human-readable project name."
+          - name_or_flags: ["--h5-file"]
+            required: true
+            description: "Filesystem path for the new HDF5 research store."
+      list:
+        name: List Projects
+        key: list
+        group_key: project
+      show:
+        name: Show Project
+        key: show
+        group_key: project
+        args:
+          - name_or_flags: ["id"]
+            description: "The project identifier to show."
     activity:
       list:
         name: List Activities
         key: list
         group_key: activity
         args:
+          - name_or_flags: ["project_id"]
+            description: "The project identifier of the research store."
           - name_or_flags: ["--action"]
             required: false
             description: "Optional action token to match exactly (e.g. source.added)."
@@ -24,6 +51,8 @@ cli:
         key: add
         group_key: source
         args:
+          - name_or_flags: ["project_id"]
+            description: "The project identifier of the research store."
           - name_or_flags: ["-m", "--medium"]
             required: true
             description: "The source medium (e.g. pdf, book)."
@@ -54,11 +83,16 @@ cli:
         name: List Sources
         key: list
         group_key: source
+        args:
+          - name_or_flags: ["project_id"]
+            description: "The project identifier of the research store."
       update:
         name: Update Source
         key: update
         group_key: source
         args:
+          - name_or_flags: ["project_id"]
+            description: "The project identifier of the research store."
           - name_or_flags: ["id"]
             description: "The source identifier to update."
           - name_or_flags: ["-a", "--authors"]
@@ -97,6 +131,8 @@ cli:
         key: attach
         group_key: source
         args:
+          - name_or_flags: ["project_id"]
+            description: "The project identifier of the research store."
           - name_or_flags: ["id"]
             description: "The source identifier to attach a document to."
           - name_or_flags: ["-f", "--file"]
@@ -110,6 +146,8 @@ cli:
         key: download
         group_key: source
         args:
+          - name_or_flags: ["project_id"]
+            description: "The project identifier of the research store."
           - name_or_flags: ["id"]
             description: "The source identifier whose document to download."
           - name_or_flags: ["-o", "--out"]
@@ -121,6 +159,8 @@ cli:
         key: add
         group_key: citation
         args:
+          - name_or_flags: ["project_id"]
+            description: "The project identifier of the research store."
           - name_or_flags: ["-s", "--source-id"]
             required: true
             description: "The identifier of the source this citation was pulled from."
@@ -141,6 +181,8 @@ cli:
         key: list
         group_key: citation
         args:
+          - name_or_flags: ["project_id"]
+            description: "The project identifier of the research store."
           - name_or_flags: ["-s", "--source-id"]
             required: true
             description: "The source identifier to filter citations by."
@@ -149,6 +191,8 @@ cli:
         key: update
         group_key: citation
         args:
+          - name_or_flags: ["project_id"]
+            description: "The project identifier of the research store."
           - name_or_flags: ["id"]
             description: "The citation identifier to update."
           - name_or_flags: ["-l", "--locator"]
@@ -172,6 +216,8 @@ cli:
         key: render
         group_key: citation
         args:
+          - name_or_flags: ["project_id"]
+            description: "The project identifier of the research store."
           - name_or_flags: ["id"]
             description: "The citation identifier to render."
           - name_or_flags: ["-s", "--style"]
@@ -183,6 +229,8 @@ cli:
         key: add
         group_key: theme
         args:
+          - name_or_flags: ["project_id"]
+            description: "The project identifier of the research store."
           - name_or_flags: ["-n", "--name"]
             required: true
             description: "The short label for the theme."
@@ -190,11 +238,16 @@ cli:
         name: List Themes
         key: list
         group_key: theme
+        args:
+          - name_or_flags: ["project_id"]
+            description: "The project identifier of the research store."
       link:
         name: Link Citation To Theme
         key: link
         group_key: theme
         args:
+          - name_or_flags: ["project_id"]
+            description: "The project identifier of the research store."
           - name_or_flags: ["-c", "--citation-id"]
             required: true
             description: "The citation identifier to link."
@@ -210,6 +263,8 @@ cli:
         key: update
         group_key: theme
         args:
+          - name_or_flags: ["project_id"]
+            description: "The project identifier of the research store."
           - name_or_flags: ["id"]
             description: "The theme identifier to update."
           - name_or_flags: ["-n", "--name"]
@@ -223,6 +278,8 @@ cli:
         key: synthesize
         group_key: theme
         args:
+          - name_or_flags: ["project_id"]
+            description: "The project identifier of the research store."
           - name_or_flags: ["id"]
             description: "The theme identifier to re-synthesize."
       retire:
@@ -230,6 +287,8 @@ cli:
         key: retire
         group_key: theme
         args:
+          - name_or_flags: ["project_id"]
+            description: "The project identifier of the research store."
           - name_or_flags: ["-c", "--citation-id"]
             required: true
             description: "The citation identifier whose linkage to retire."
@@ -244,6 +303,8 @@ cli:
         key: reinstate
         group_key: theme
         args:
+          - name_or_flags: ["project_id"]
+            description: "The project identifier of the research store."
           - name_or_flags: ["-c", "--citation-id"]
             required: true
             description: "The citation identifier whose linkage to reinstate."
@@ -255,6 +316,8 @@ cli:
         key: show
         group_key: theme
         args:
+          - name_or_flags: ["project_id"]
+            description: "The project identifier of the research store."
           - name_or_flags: ["id"]
             description: "The theme identifier to show."
           - name_or_flags: ["--include-retired"]
@@ -267,6 +330,8 @@ cli:
         key: add
         group_key: abstract
         args:
+          - name_or_flags: ["project_id"]
+            description: "The project identifier of the research store."
           - name_or_flags: ["-n", "--name"]
             required: true
             description: "The short label for the argument brief."
@@ -277,11 +342,16 @@ cli:
         name: List Abstracts
         key: list
         group_key: abstract
+        args:
+          - name_or_flags: ["project_id"]
+            description: "The project identifier of the research store."
       show:
         name: Show Abstract
         key: show
         group_key: abstract
         args:
+          - name_or_flags: ["project_id"]
+            description: "The project identifier of the research store."
           - name_or_flags: ["id"]
             description: "The abstract identifier to show."
       update:
@@ -289,6 +359,8 @@ cli:
         key: update
         group_key: abstract
         args:
+          - name_or_flags: ["project_id"]
+            description: "The project identifier of the research store."
           - name_or_flags: ["id"]
             description: "The abstract identifier to update."
           - name_or_flags: ["-n", "--name"]
@@ -302,6 +374,8 @@ cli:
         key: link
         group_key: abstract
         args:
+          - name_or_flags: ["project_id"]
+            description: "The project identifier of the research store."
           - name_or_flags: ["id"]
             description: "The abstract identifier to link a theme to."
           - name_or_flags: ["-t", "--theme-id"]
@@ -316,6 +390,8 @@ cli:
         key: synthesize
         group_key: abstract
         args:
+          - name_or_flags: ["project_id"]
+            description: "The project identifier of the research store."
           - name_or_flags: ["id"]
             description: "The abstract identifier to re-synthesize."
     outline:
@@ -324,6 +400,8 @@ cli:
         key: assemble
         group_key: outline
         args:
+          - name_or_flags: ["project_id"]
+            description: "The project identifier of the research store."
           - name_or_flags: ["-n", "--title"]
             required: true
             description: "The short label for this arrangement."
@@ -335,6 +413,8 @@ cli:
         key: add
         group_key: outline
         args:
+          - name_or_flags: ["project_id"]
+            description: "The project identifier of the research store."
           - name_or_flags: ["id"]
             description: "The outline identifier to add a slot to."
           - name_or_flags: ["-n", "--title"]
@@ -349,6 +429,8 @@ cli:
         key: add-theme
         group_key: outline
         args:
+          - name_or_flags: ["project_id"]
+            description: "The project identifier of the research store."
           - name_or_flags: ["id"]
             description: "The outline identifier whose slot to update."
           - name_or_flags: ["-s", "--slot-id"]
@@ -362,6 +444,8 @@ cli:
         key: remove-theme
         group_key: outline
         args:
+          - name_or_flags: ["project_id"]
+            description: "The project identifier of the research store."
           - name_or_flags: ["id"]
             description: "The outline identifier whose slot to update."
           - name_or_flags: ["-s", "--slot-id"]
@@ -375,6 +459,8 @@ cli:
         key: show
         group_key: outline
         args:
+          - name_or_flags: ["project_id"]
+            description: "The project identifier of the research store."
           - name_or_flags: ["id"]
             description: "The outline identifier to show."
           - name_or_flags: ["-s", "--style"]
@@ -384,12 +470,17 @@ cli:
         name: List Outlines
         key: list
         group_key: outline
+        args:
+          - name_or_flags: ["project_id"]
+            description: "The project identifier of the research store."
     paper:
       open:
         name: Open Paper From Outline
         key: open
         group_key: paper
         args:
+          - name_or_flags: ["project_id"]
+            description: "The project identifier of the research store."
           - name_or_flags: ["outline_id"]
             description: "The origin outline identifier to fork into a paper."
           - name_or_flags: ["-n", "--title"]
@@ -400,17 +491,24 @@ cli:
         key: show
         group_key: paper
         args:
+          - name_or_flags: ["project_id"]
+            description: "The project identifier of the research store."
           - name_or_flags: ["id"]
             description: "The paper identifier to show."
       list:
         name: List Papers
         key: list
         group_key: paper
+        args:
+          - name_or_flags: ["project_id"]
+            description: "The project identifier of the research store."
       section:
         name: Update Paper Section
         key: section
         group_key: paper
         args:
+          - name_or_flags: ["project_id"]
+            description: "The project identifier of the research store."
           - name_or_flags: ["id"]
             description: "The paper identifier whose section to update."
           - name_or_flags: ["-s", "--section"]
@@ -430,6 +528,8 @@ cli:
         key: abstract
         group_key: paper
         args:
+          - name_or_flags: ["project_id"]
+            description: "The project identifier of the research store."
           - name_or_flags: ["id"]
             description: "The paper identifier whose abstract to set."
           - name_or_flags: ["-d", "--body"]
@@ -443,6 +543,8 @@ cli:
         key: cite
         group_key: paper
         args:
+          - name_or_flags: ["project_id"]
+            description: "The project identifier of the research store."
           - name_or_flags: ["id"]
             description: "The paper identifier to add a citation to."
           - name_or_flags: ["-c", "--citation-id"]

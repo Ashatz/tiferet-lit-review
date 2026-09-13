@@ -1,4 +1,20 @@
 features:
+  project:
+    add:
+      name: Add Project
+      steps:
+        - name: Add Project
+          service_id: add_project_event
+    list:
+      name: List Projects
+      steps:
+        - name: List Projects
+          service_id: list_projects_event
+    show:
+      name: Show Project
+      steps:
+        - name: Show Project
+          service_id: get_project_event
   activity:
     list:
       name: List Activities
