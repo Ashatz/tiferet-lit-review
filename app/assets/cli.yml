@@ -153,6 +153,30 @@ cli:
           - name_or_flags: ["-o", "--out"]
             required: false
             description: "Destination directory; defaults to the current working directory."
+      copy:
+        name: Copy Source
+        key: copy
+        group_key: source
+        args:
+          - name_or_flags: ["project_id"]
+            description: "The origin project identifier."
+          - name_or_flags: ["id"]
+            description: "The source identifier to copy."
+          - name_or_flags: ["--to"]
+            required: true
+            description: "The destination project identifier."
+      move:
+        name: Move Source
+        key: move
+        group_key: source
+        args:
+          - name_or_flags: ["project_id"]
+            description: "The origin project identifier."
+          - name_or_flags: ["id"]
+            description: "The source identifier to move."
+          - name_or_flags: ["--to"]
+            required: true
+            description: "The destination project identifier."
     citation:
       add:
         name: Add Citation
@@ -223,6 +247,30 @@ cli:
           - name_or_flags: ["-s", "--style"]
             required: true
             description: "The citation style identifier (e.g. apa)."
+      copy:
+        name: Copy Citation
+        key: copy
+        group_key: citation
+        args:
+          - name_or_flags: ["project_id"]
+            description: "The origin project identifier."
+          - name_or_flags: ["id"]
+            description: "The citation identifier to copy."
+          - name_or_flags: ["--to"]
+            required: true
+            description: "The destination project identifier."
+      move:
+        name: Move Citation
+        key: move
+        group_key: citation
+        args:
+          - name_or_flags: ["project_id"]
+            description: "The origin project identifier."
+          - name_or_flags: ["id"]
+            description: "The citation identifier to move."
+          - name_or_flags: ["--to"]
+            required: true
+            description: "The destination project identifier."
     theme:
       add:
         name: Add Theme

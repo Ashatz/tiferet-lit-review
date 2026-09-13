@@ -196,3 +196,21 @@ class SourceH5Repository(SourceService, H5Repository):
             if h5.node_exists(path):
                 h5.h5file.remove_node(path)
             h5.create_array(path, array_data)
+
+    # * method: remove_for_transfer
+    def remove_for_transfer(self, id: str) -> None:
+        '''
+        Remove an origin source group as the last step of a move.
+
+        This helper is repository-private. It is not part of SourceService
+        and is not a general-purpose delete API.
+
+        :param id: The origin source identifier to remove.
+        :type id: str
+        '''
+
+        # Drop the source group, including any attached document array.
+        path = f'{SOURCES_GROUP_PATH}/{id}'
+        with self.client() as h5:
+            if h5.node_exists(path):
+                h5.h5file.remove_node(path, recursive=True)

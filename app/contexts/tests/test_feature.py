@@ -114,7 +114,6 @@ def test_attach_feature_omits_name_without_parameter_not_found():
     assert call_kwargs['path'] == '/tmp/2002.11054v2.pdf'
     assert 'document_name' not in call_kwargs
 
-
 # ** test: test_attach_feature_supplied_name_reaches_event_unchanged
 def test_attach_feature_supplied_name_reaches_event_unchanged():
     '''
@@ -157,7 +156,6 @@ def test_attach_feature_supplied_name_reaches_event_unchanged():
     _, call_kwargs = mock_event.execute.call_args
     assert call_kwargs['name'] == 'custom_name.pdf'
 
-
 # ** test: test_default_store_reachable_after_bootstrap
 def test_default_store_reachable_after_bootstrap(app_home):
     '''
@@ -186,7 +184,6 @@ def test_default_store_reachable_after_bootstrap(app_home):
     catalog = Path('.lit_review') / 'projects.yml'
     assert catalog.is_file()
 
-
 # ** test: test_project_add_writes_catalog_and_h5
 def test_project_add_writes_catalog_and_h5(app_home):
     '''
@@ -211,7 +208,6 @@ def test_project_add_writes_catalog_and_h5(app_home):
     assert result.h5_file == h5_file
     assert result.created_at
     assert Path(h5_file).is_file()
-
 
 # ** test: test_project_list_and_show_do_not_open_store
 def test_project_list_and_show_do_not_open_store(app_home):
@@ -239,7 +235,6 @@ def test_project_list_and_show_do_not_open_store(app_home):
     assert shown.id == 'paper'
     assert shown.name == 'Paper'
 
-
 # ** test: test_missing_project_id_fails_before_store_write
 def test_missing_project_id_fails_before_store_write(app_home):
     '''
@@ -265,7 +260,6 @@ def test_missing_project_id_fails_before_store_write(app_home):
     # The missing-parameter error is raised and no store file is written.
     assert exc_info.value.error_code == COMMAND_PARAMETER_REQUIRED_ID
     assert h5_file.exists() is False
-
 
 # ** test: test_unknown_project_id_fails_before_store_write
 def test_unknown_project_id_fails_before_store_write(app_home):
@@ -298,7 +292,6 @@ def test_unknown_project_id_fails_before_store_write(app_home):
         assert h5_file.stat().st_mtime == mtime
     else:
         assert h5_file.exists() is False
-
 
 # ** test: test_source_add_is_isolated_by_project
 def test_source_add_is_isolated_by_project(app_home):
@@ -343,7 +336,6 @@ def test_source_add_is_isolated_by_project(app_home):
     assert any(item.id == added.id for item in alpha_sources)
     assert beta_sources == []
 
-
 # ** test: test_project_add_does_not_require_store_project_id
 def test_project_add_does_not_require_store_project_id(app_home):
     '''
@@ -363,7 +355,6 @@ def test_project_add_does_not_require_store_project_id(app_home):
 
     # The command succeeds without a store project_id on the request.
     assert result.id == 'side'
-
 
 # ** test: test_app_session_uses_lit_review_feature_context
 def test_app_session_uses_lit_review_feature_context(app_home):
@@ -392,7 +383,6 @@ def test_app_session_uses_lit_review_feature_context(app_home):
     assert type(constructed[0]) is LitReviewFeatureContext
     assert constructed[0].domain.id == 'project.list'
 
-
 # ** test: test_cli_session_uses_lit_review_feature_context
 def test_cli_session_uses_lit_review_feature_context(app_home):
     '''
@@ -418,3 +408,151 @@ def test_cli_session_uses_lit_review_feature_context(app_home):
     assert constructed
     assert type(constructed[0]) is LitReviewFeatureContext
     assert constructed[0].domain.id == 'project.list'
+
+# ** test: test_source_copy_missing_to_fails_before_store_write
+def test_source_copy_missing_to_fails_before_store_write(app_home):
+    '''
+    source copy without --to fails before any dest store write.
+    '''
+
+    # Create origin and dest projects, then copy without dest.
+    session = build_app()
+    session.run(
+        'project.add',
+        data={
+            'id': 'alpha',
+            'name': 'Alpha',
+            'h5_file': str(app_home / 'alpha.h5'),
+        },
+    )
+    added = session.run(
+        'source.add',
+        data={
+            'project_id': 'alpha',
+            'medium': 'pdf',
+            'authors': ['Lattner, C.'],
+            'year': 2020,
+            'title': 'MLIR',
+        },
+    )
+
+    with pytest.raises(TiferetAPIError) as exc_info:
+        session.run(
+            'source.copy',
+            data={
+                'project_id': 'alpha',
+                'id': added.id,
+            },
+        )
+
+    # Missing --to is a required-parameter error; origin is unchanged.
+    assert exc_info.value.error_code == COMMAND_PARAMETER_REQUIRED_ID
+    assert session.run('source.list', data={'project_id': 'alpha'})
+
+# ** test: test_source_copy_unknown_dest_fails_through_catalog
+def test_source_copy_unknown_dest_fails_through_catalog(app_home):
+    '''
+    source copy against an unknown dest project fails through catalog lookup.
+    '''
+
+    # Create only the origin project.
+    session = build_app()
+    session.run(
+        'project.add',
+        data={
+            'id': 'alpha',
+            'name': 'Alpha',
+            'h5_file': str(app_home / 'alpha.h5'),
+        },
+    )
+    added = session.run(
+        'source.add',
+        data={
+            'project_id': 'alpha',
+            'medium': 'pdf',
+            'authors': ['Lattner, C.'],
+            'year': 2020,
+            'title': 'MLIR',
+        },
+    )
+
+    with pytest.raises(TiferetAPIError) as exc_info:
+        session.run(
+            'source.copy',
+            data={
+                'project_id': 'alpha',
+                'id': added.id,
+                'to': 'missing',
+            },
+        )
+
+    # Dest lookup uses PROJECT_NOT_FOUND; origin is unchanged.
+    assert exc_info.value.error_code == PROJECT_NOT_FOUND_ID
+    listed = session.run('source.list', data={'project_id': 'alpha'})
+    assert any(item.id == added.id for item in listed)
+
+# ** test: test_source_copy_via_app_and_cli
+def test_source_copy_via_app_and_cli(app_home):
+    '''
+    source copy PROJECT_ID SOURCE_ID --to DEST_PROJECT_ID writes dest only.
+    '''
+
+    # Create two catalogued stores and a source on origin.
+    session = build_app()
+    session.run(
+        'project.add',
+        data={
+            'id': 'alpha',
+            'name': 'Alpha',
+            'h5_file': str(app_home / 'alpha.h5'),
+        },
+    )
+    session.run(
+        'project.add',
+        data={
+            'id': 'beta',
+            'name': 'Beta',
+            'h5_file': str(app_home / 'beta.h5'),
+        },
+    )
+    added = session.run(
+        'source.add',
+        data={
+            'project_id': 'alpha',
+            'medium': 'pdf',
+            'authors': ['Lattner, C.'],
+            'year': 2020,
+            'title': 'MLIR',
+        },
+    )
+
+    # Copy through the App session, then again through CLI against a second pair.
+    copied = session.run(
+        'source.copy',
+        data={
+            'project_id': 'alpha',
+            'id': added.id,
+            'to': 'beta',
+        },
+    )
+    alpha_sources = session.run('source.list', data={'project_id': 'alpha'})
+    beta_sources = session.run('source.list', data={'project_id': 'beta'})
+    assert copied.id == added.id
+    assert any(item.id == added.id for item in alpha_sources)
+    assert any(item.id == added.id for item in beta_sources)
+
+    # CLI copy of a different source uses the same --to dest flag.
+    second = session.run(
+        'source.add',
+        data={
+            'project_id': 'alpha',
+            'medium': 'book',
+            'authors': ['Example, A.'],
+            'year': 2021,
+            'title': 'Another Work',
+        },
+    )
+    build_cli(argv=['source', 'copy', 'alpha', second.id, '--to', 'beta'])
+    beta_sources = session.run('source.list', data={'project_id': 'beta'})
+    assert any(item.id == second.id for item in beta_sources)
+    assert session.run('source.list', data={'project_id': 'alpha'})
