@@ -3,7 +3,7 @@
 # *** imports
 
 # ** core
-from typing import List, Optional
+from typing import Callable, List, Optional
 from uuid import uuid4
 
 # ** app
@@ -25,13 +25,14 @@ from ..domain.theme import Theme, slugify_theme_name
 from ..interfaces.activity import ActivityService
 from ..interfaces.citation import CitationService
 from ..interfaces.linkage import LinkageService
+from ..interfaces.project import ProjectService
 from ..interfaces.synthesis import ThemeSynthesisService
 from ..interfaces.theme import ThemeService
 from ..mappers.activity import ActivityAggregate
 from ..mappers.linkage import LinkageAggregate
 from ..mappers.theme import RetiredCitationView, ThemeAggregate, ThemeResponse
 from .activity import record_activity
-from .citation import CITATION_NOT_FOUND_ID
+from .citation import CITATION_NOT_FOUND_ID, citation_for_read
 
 # *** constants
 
@@ -48,13 +49,17 @@ def load_active_citations(
         linkage_service: LinkageService,
         citation_service: CitationService,
         theme_id: str,
+        event: Optional[DomainEvent] = None,
+        project_service: Optional[ProjectService] = None,
+        get_project_dependency: Optional[Callable] = None,
     ) -> List[Citation]:
     '''
     Load the citations for a theme's active linkages, newest-linkage-first.
 
     Shared by LinkCitationToTheme's opt-in synthesis path and
     ResynthesizeTheme so both feed the synthesizer the identical set; a
-    retired linkage's excerpt never reaches either path (RFP-7).
+    retired linkage's excerpt never reaches either path (RFP-7). Link
+    citations contribute the origin excerpt and the local context_note.
 
     :param linkage_service: The linkage service dependency.
     :type linkage_service: LinkageService
@@ -62,6 +67,12 @@ def load_active_citations(
     :type citation_service: CitationService
     :param theme_id: The theme identifier whose active linkages to load.
     :type theme_id: str
+    :param event: The calling event, used to fail a missing link origin.
+    :type event: Optional[DomainEvent]
+    :param project_service: The catalog project service.
+    :type project_service: Optional[ProjectService]
+    :param get_project_dependency: Factory for a project-scoped get_dependency.
+    :type get_project_dependency: Optional[Callable]
     :return: The active linkages' citations, newest-linkage-first.
     :rtype: List[Citation]
     '''
@@ -76,8 +87,16 @@ def load_active_citations(
             continue
 
         citation = citation_service.get(linkage.citation_id)
-        if citation is not None:
-            citations.append(citation)
+        if citation is None:
+            continue
+        if event is not None:
+            citation = citation_for_read(
+                event,
+                citation,
+                project_service,
+                get_project_dependency,
+            )
+        citations.append(citation)
 
     # Return the active-only citation set.
     return citations
@@ -380,6 +399,9 @@ class LinkCitationToTheme(DomainEvent):
                     self.linkage_service,
                     self.citation_service,
                     theme_id,
+                    event=self,
+                    project_service=kwargs.get('project_service'),
+                    get_project_dependency=kwargs.get('get_project_dependency'),
                 )
                 description = self.theme_synthesis_service.synthesize(theme, citations)
                 theme.set_attribute('synthesized_description', description)
@@ -417,6 +439,9 @@ class LinkCitationToTheme(DomainEvent):
                 self.linkage_service,
                 self.citation_service,
                 theme_id,
+                event=self,
+                project_service=kwargs.get('project_service'),
+                get_project_dependency=kwargs.get('get_project_dependency'),
             )
             description = self.theme_synthesis_service.synthesize(
                 theme,
@@ -758,17 +783,24 @@ class ShowTheme(ThemeEvent):
         # Split linked citations into active and (optionally) retired views.
         citations = []
         retired_citations = [] if include_retired else None
+        project_service = kwargs.get('project_service')
+        get_project_dependency = kwargs.get('get_project_dependency')
         for linkage in self.linkage_service.list(theme_id=id):
+            citation = self.citation_service.get(linkage.citation_id)
+            if citation is None:
+                continue
+            citation = citation_for_read(
+                self,
+                citation,
+                project_service,
+                get_project_dependency,
+            )
             if linkage.is_active():
-                citation = self.citation_service.get(linkage.citation_id)
-                if citation is not None:
-                    citations.append(citation)
+                citations.append(citation)
             elif include_retired:
-                citation = self.citation_service.get(linkage.citation_id)
-                if citation is not None:
-                    retired_citations.append(
-                        RetiredCitationView.from_citation_and_linkage(citation, linkage)
-                    )
+                retired_citations.append(
+                    RetiredCitationView.from_citation_and_linkage(citation, linkage)
+                )
 
         # Map the theme aggregate into a response with the split citations.
         return ThemeResponse.from_aggregate(
@@ -958,7 +990,14 @@ class ResynthesizeTheme(DomainEvent):
         )
 
         # Load the active linkages' citations, newest-linkage-first.
-        citations = load_active_citations(self.linkage_service, self.citation_service, id)
+        citations = load_active_citations(
+            self.linkage_service,
+            self.citation_service,
+            id,
+            event=self,
+            project_service=kwargs.get('project_service'),
+            get_project_dependency=kwargs.get('get_project_dependency'),
+        )
 
         # Run the injected synthesizer and write the description.
         description = self.theme_synthesis_service.synthesize(theme, citations)

@@ -3,18 +3,27 @@
 # *** imports
 
 # ** core
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 # ** app
 from tiferet import DomainEvent
+from tiferet.assets.error import COMMAND_PARAMETER_REQUIRED_ID
 
 from ..domain.activity import CITATION_ADDED_ACTION, CITATION_SUBJECT_TYPE, CITATION_UPDATED_ACTION
+from ..domain.citation import (
+    ALLOWED_CITATION_TYPES,
+    CITATION_TYPE_DEFAULT,
+    CITATION_TYPE_LINK,
+    parse_citation_link_pointer,
+)
 from ..domain.source import is_valid_locator
 from ..interfaces.activity import ActivityService
 from ..interfaces.citation import CitationService
+from ..interfaces.project import ProjectService
 from ..interfaces.source import SourceService
 from ..mappers.activity import ActivityAggregate
 from ..mappers.citation import CitationAggregate
+from ..mappers.source import SourceAggregate
 from .activity import record_activity
 from .source import SOURCE_NOT_FOUND_ID
 
@@ -25,6 +34,214 @@ CITATION_NOT_FOUND_ID = 'CITATION_NOT_FOUND'
 
 # ** constant: invalid_locator_id
 INVALID_LOCATOR_ID = 'INVALID_LOCATOR'
+
+# ** constant: citation_link_origin_not_found_id
+CITATION_LINK_ORIGIN_NOT_FOUND_ID = 'CITATION_LINK_ORIGIN_NOT_FOUND'
+
+# ** constant: invalid_citation_type_id
+INVALID_CITATION_TYPE_ID = 'INVALID_CITATION_TYPE'
+
+# ** constant: invalid_citation_link_pointer_id
+INVALID_CITATION_LINK_POINTER_ID = 'INVALID_CITATION_LINK_POINTER'
+
+# ** constant: citation_link_immutable_id
+CITATION_LINK_IMMUTABLE_ID = 'CITATION_LINK_IMMUTABLE'
+
+# *** functions
+
+# ** function: normalize_citation_type
+def normalize_citation_type(citation_type: Optional[str] = None) -> str:
+    '''
+    Coerce a missing or blank citation type to default.
+
+    :param citation_type: The requested citation type, if any.
+    :type citation_type: Optional[str]
+    :return: ``default`` or the stripped requested type.
+    :rtype: str
+    '''
+
+    # Omit or blank type keeps today's default capture shape.
+    if citation_type is None or not str(citation_type).strip():
+        return CITATION_TYPE_DEFAULT
+
+    # Return the caller-supplied type for later allow-list checking.
+    return str(citation_type).strip()
+
+# ** function: load_origin_citation
+def load_origin_citation(
+        event: DomainEvent,
+        pointer: str,
+        project_service: Optional[ProjectService],
+        get_project_dependency: Optional[Callable],
+    ) -> CitationAggregate:
+    '''
+    Load the origin default citation named by a live pointer.
+
+    :param event: The calling event, used to raise structured errors.
+    :type event: DomainEvent
+    :param pointer: The stored ``project_id:citation_id`` excerpt.
+    :type pointer: str
+    :param project_service: The catalog project service.
+    :type project_service: Optional[ProjectService]
+    :param get_project_dependency: Factory for a project-scoped get_dependency.
+    :type get_project_dependency: Optional[Callable]
+    :return: The origin citation aggregate.
+    :rtype: CitationAggregate
+    '''
+
+    # Reject a malformed pointer before opening any origin store.
+    try:
+        origin_project_id, origin_citation_id = parse_citation_link_pointer(pointer)
+    except ValueError:
+        event.raise_error(
+            INVALID_CITATION_LINK_POINTER_ID,
+            message=(
+                'A link citation excerpt must be exactly '
+                f'project_id:citation_id; got {pointer!r}.'
+            ),
+            excerpt=pointer,
+        )
+
+    # Origin resolve requires the catalog and a project-scoped store getter.
+    event.verify(
+        project_service is not None and get_project_dependency is not None,
+        CITATION_LINK_ORIGIN_NOT_FOUND_ID,
+        message=f'Citation link origin not found: {pointer}.',
+        pointer=pointer,
+    )
+
+    # Origin project must exist in the catalog.
+    project = project_service.get(origin_project_id)
+    event.verify(
+        project is not None,
+        CITATION_LINK_ORIGIN_NOT_FOUND_ID,
+        message=f'Citation link origin not found: {pointer}.',
+        pointer=pointer,
+        origin_project_id=origin_project_id,
+    )
+
+    # Load the origin citation from that project's store.
+    origin_getter = get_project_dependency(project.id, project.h5_file)
+    origin_citation_service = origin_getter('citation_service')
+    origin = origin_citation_service.get(origin_citation_id)
+    event.verify(
+        origin is not None and origin.type == CITATION_TYPE_DEFAULT,
+        CITATION_LINK_ORIGIN_NOT_FOUND_ID,
+        message=f'Citation link origin not found: {pointer}.',
+        pointer=pointer,
+        origin_project_id=origin_project_id,
+        origin_citation_id=origin_citation_id,
+    )
+
+    # Return the verified default origin citation.
+    return origin
+
+# ** function: citation_for_read
+def citation_for_read(
+        event: DomainEvent,
+        citation: CitationAggregate,
+        project_service: Optional[ProjectService] = None,
+        get_project_dependency: Optional[Callable] = None,
+    ) -> CitationAggregate:
+    '''
+    Return a display citation with origin excerpt/locator overlaid for links.
+
+    The overlay is not persisted. Local title and context_note stay local.
+
+    :param event: The calling event, used to raise structured errors.
+    :type event: DomainEvent
+    :param citation: The stored local citation.
+    :type citation: CitationAggregate
+    :param project_service: The catalog project service.
+    :type project_service: Optional[ProjectService]
+    :param get_project_dependency: Factory for a project-scoped get_dependency.
+    :type get_project_dependency: Optional[Callable]
+    :return: The stored citation, or an unsaved origin-resolved copy.
+    :rtype: CitationAggregate
+    '''
+
+    # Default citations already carry local evidence text.
+    if not citation.is_link:
+        return citation
+
+    # Overlay origin excerpt and locator without writing them onto the local row.
+    origin = load_origin_citation(
+        event,
+        citation.excerpt,
+        project_service,
+        get_project_dependency,
+    )
+
+    # Origin passage is default-shaped evidence; callers restore type for show.
+    return CitationAggregate(
+        id=citation.id,
+        source_id=origin.source_id,
+        locator=origin.locator,
+        excerpt=origin.excerpt,
+        context_note=citation.context_note,
+        title=citation.title,
+        type=CITATION_TYPE_DEFAULT,
+        created_at=citation.created_at,
+    )
+
+# ** function: source_for_read
+def source_for_read(
+        event: DomainEvent,
+        citation: CitationAggregate,
+        source_service: SourceService,
+        project_service: Optional[ProjectService] = None,
+        get_project_dependency: Optional[Callable] = None,
+    ) -> SourceAggregate:
+    '''
+    Resolve the Source used to render or display a citation.
+
+    :param event: The calling event, used to raise structured errors.
+    :type event: DomainEvent
+    :param citation: The stored local citation.
+    :type citation: CitationAggregate
+    :param source_service: The current project's source service.
+    :type source_service: SourceService
+    :param project_service: The catalog project service.
+    :type project_service: Optional[ProjectService]
+    :param get_project_dependency: Factory for a project-scoped get_dependency.
+    :type get_project_dependency: Optional[Callable]
+    :return: The local source, or the origin source for a link citation.
+    :rtype: SourceAggregate
+    '''
+
+    # Default citations resolve Source in the current project store.
+    if not citation.is_link:
+        source = source_service.get(citation.source_id)
+        event.verify(
+            source is not None,
+            SOURCE_NOT_FOUND_ID,
+            message=f'Source not found: {citation.source_id}.',
+            id=citation.source_id,
+        )
+        return source
+
+    # Link citations follow the pointer to the origin project's Source.
+    origin = load_origin_citation(
+        event,
+        citation.excerpt,
+        project_service,
+        get_project_dependency,
+    )
+    origin_project_id, _ = parse_citation_link_pointer(citation.excerpt)
+    project = project_service.get(origin_project_id)
+    origin_getter = get_project_dependency(project.id, project.h5_file)
+    origin_source_service = origin_getter('source_service')
+    source = origin_source_service.get(origin.source_id)
+    event.verify(
+        source is not None,
+        CITATION_LINK_ORIGIN_NOT_FOUND_ID,
+        message=f'Citation link origin not found: {citation.excerpt}.',
+        pointer=citation.excerpt,
+        origin_source_id=origin.source_id,
+    )
+
+    # Return the origin bibliographic record.
+    return source
 
 # *** events
 
@@ -89,33 +306,91 @@ class AddCitation(CitationEvent):
         self.activity_service = activity_service
 
     # * method: execute
-    @DomainEvent.parameters_required(['source_id', 'locator', 'excerpt'])
+    @DomainEvent.parameters_required(['excerpt'])
     def execute(self,
-            source_id: str,
-            locator: str,
             excerpt: str,
+            source_id: Optional[str] = None,
+            locator: Optional[str] = None,
             context_note: Optional[str] = None,
             title: Optional[str] = None,
+            type: Optional[str] = None,
+            project_service: Optional[ProjectService] = None,
+            get_project_dependency: Optional[Callable] = None,
             **kwargs,
         ) -> CitationAggregate:
         '''
         Add a new citation.
 
-        :param source_id: The identifier of the source this citation was pulled from.
-        :type source_id: str
-        :param locator: The precise locator of the excerpt within its source.
-        :type locator: str
-        :param excerpt: The quoted or paraphrased text pulled from the source.
+        :param excerpt: Evidence text, or a live ``project_id:citation_id`` pointer.
         :type excerpt: str
+        :param source_id: The local source identifier; required for default type.
+        :type source_id: Optional[str]
+        :param locator: The local locator; required for default type.
+        :type locator: Optional[str]
         :param context_note: An optional surrounding-context note.
         :type context_note: Optional[str]
         :param title: An optional researcher-authored label for this citation.
         :type title: Optional[str]
+        :param type: Citation type; omit or ``default`` keeps local capture.
+        :type type: Optional[str]
+        :param project_service: The catalog project service, used for link origins.
+        :type project_service: Optional[ProjectService]
+        :param get_project_dependency: Factory for a project-scoped get_dependency.
+        :type get_project_dependency: Optional[Callable]
         :param kwargs: Additional keyword arguments.
         :type kwargs: dict
         :return: The created citation aggregate.
         :rtype: CitationAggregate
         '''
+
+        # Classify the capture shape; unknown types are rejected before save.
+        citation_type = normalize_citation_type(type)
+        self.verify(
+            citation_type in ALLOWED_CITATION_TYPES,
+            INVALID_CITATION_TYPE_ID,
+            message=(
+                f'Unknown citation type {citation_type!r}; '
+                f'allowed values are {ALLOWED_CITATION_TYPES}.'
+            ),
+            type=citation_type,
+        )
+
+        # A link citation stores a live pointer and does not require local source.
+        if citation_type == CITATION_TYPE_LINK:
+            load_origin_citation(
+                self,
+                excerpt,
+                project_service,
+                get_project_dependency,
+            )
+            new_citation = CitationAggregate(
+                excerpt=excerpt,
+                context_note=context_note,
+                title=title,
+                type=CITATION_TYPE_LINK,
+            )
+            self.citation_service.save(new_citation)
+            record_activity(self.activity_service, ActivityAggregate(
+                action=CITATION_ADDED_ACTION,
+                subject_type=CITATION_SUBJECT_TYPE,
+                subject_id=new_citation.id,
+                changed_fields=['type'],
+            ))
+            return new_citation
+
+        # Default capture still requires a local source, locator, and excerpt.
+        self.verify(
+            isinstance(source_id, str) and bool(source_id.strip()),
+            COMMAND_PARAMETER_REQUIRED_ID,
+            message='The required parameter source_id is missing.',
+            parameter='source_id',
+        )
+        self.verify(
+            isinstance(locator, str) and bool(locator.strip()),
+            COMMAND_PARAMETER_REQUIRED_ID,
+            message='The required parameter locator is missing.',
+            parameter='locator',
+        )
 
         # Verify the parent source exists.
         source = self.source_service.get(source_id)
@@ -143,6 +418,7 @@ class AddCitation(CitationEvent):
             excerpt=excerpt,
             context_note=context_note,
             title=title,
+            type=CITATION_TYPE_DEFAULT,
         )
         self.citation_service.save(new_citation)
 
@@ -191,28 +467,92 @@ class GetCitation(CitationEvent):
         # Return the citation.
         return citation
 
-# ** event: list_citations_for_source
-class ListCitationsForSource(CitationEvent):
+# ** event: show_citation
+class ShowCitation(CitationEvent):
     '''
-    List all citations belonging to a given source, in insertion order.
+    Display a Citation, resolving a link's origin excerpt, locator, and source.
     '''
 
     # * method: execute
-    @DomainEvent.parameters_required(['source_id'])
-    def execute(self, source_id: str, **kwargs) -> List[CitationAggregate]:
+    @DomainEvent.parameters_required(['id'])
+    def execute(self,
+            id: str,
+            project_service: Optional[ProjectService] = None,
+            get_project_dependency: Optional[Callable] = None,
+            **kwargs,
+        ) -> CitationAggregate:
         '''
-        List all citations for a source.
+        Show a citation, overlaying origin evidence for a link without saving.
 
-        :param source_id: The source identifier to filter citations by.
-        :type source_id: str
+        :param id: The citation identifier.
+        :type id: str
+        :param project_service: The catalog project service.
+        :type project_service: Optional[ProjectService]
+        :param get_project_dependency: Factory for a project-scoped get_dependency.
+        :type get_project_dependency: Optional[Callable]
         :param kwargs: Additional keyword arguments.
         :type kwargs: dict
-        :return: The citations belonging to the source, in insertion order.
+        :return: The stored citation, or an unsaved origin-resolved copy.
+        :rtype: CitationAggregate
+        '''
+
+        # Retrieve the citation and verify it exists.
+        citation = self.citation_service.get(id)
+        self.verify(
+            citation is not None,
+            CITATION_NOT_FOUND_ID,
+            message=f'Citation not found: {id}.',
+            id=id,
+        )
+
+        # Overlay origin excerpt and locator for display; do not persist them.
+        display = citation_for_read(
+            self,
+            citation,
+            project_service,
+            get_project_dependency,
+        )
+        if not citation.is_link:
+            return display
+
+        # Restore type=link so show reports the stored capture shape.
+        return CitationAggregate.model_construct(
+            id=display.id,
+            source_id=display.source_id,
+            locator=display.locator,
+            excerpt=display.excerpt,
+            context_note=display.context_note,
+            title=display.title,
+            type=CITATION_TYPE_LINK,
+            created_at=display.created_at,
+        )
+
+# ** event: list_citations_for_source
+class ListCitationsForSource(CitationEvent):
+    '''
+    List citations, optionally filtered by source, without opening origin stores.
+    '''
+
+    # * method: execute
+    def execute(self, source_id: Optional[str] = None, **kwargs) -> List[CitationAggregate]:
+        '''
+        List citations, optionally filtered by source_id.
+
+        List stays metadata-light: stored rows including type and pointer
+        excerpt, without resolving origin stores.
+
+        :param source_id: Optional source identifier to filter citations by.
+        :type source_id: Optional[str]
+        :param kwargs: Additional keyword arguments.
+        :type kwargs: dict
+        :return: The matching citations, in insertion order.
         :rtype: List[CitationAggregate]
         '''
 
-        # Return the citations filtered by source_id.
-        return self.citation_service.list(source_id=source_id)
+        # Apply the optional source_id filter; omit it to list every local row.
+        if source_id is not None:
+            return self.citation_service.list(source_id=source_id)
+        return self.citation_service.list()
 
 # ** event: update_citation
 class UpdateCitation(CitationEvent):
@@ -293,6 +633,18 @@ class UpdateCitation(CitationEvent):
             message=f'Citation not found: {id}.',
             id=id,
         )
+
+        # A link may change title/context_note, but not type or the pointer.
+        if citation.is_link:
+            self.verify(
+                locator is None and excerpt is None,
+                CITATION_LINK_IMMUTABLE_ID,
+                message=(
+                    'A link citation cannot retarget its pointer or change '
+                    f'type in this slice: {id}.'
+                ),
+                id=id,
+            )
 
         # Re-validate locator shape against the parent source when changing it.
         if locator is not None:

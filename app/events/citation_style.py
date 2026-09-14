@@ -5,17 +5,17 @@
 # ** core
 from collections import defaultdict
 import re
-from typing import Dict
+from typing import Callable, Dict, Optional
 
 # ** app
 from tiferet import DomainEvent
 
 from ..interfaces.citation import CitationService
 from ..interfaces.citation_style import CitationStyleRuleService
+from ..interfaces.project import ProjectService
 from ..interfaces.source import SourceService
 from ..mappers.citation import CitationResponse
-from .citation import CITATION_NOT_FOUND_ID
-from .source import SOURCE_NOT_FOUND_ID
+from .citation import CITATION_NOT_FOUND_ID, citation_for_read, source_for_read
 
 # *** constants
 
@@ -91,7 +91,13 @@ class RenderCitation(DomainEvent):
 
     # * method: execute
     @DomainEvent.parameters_required(['citation_id', 'style_id'])
-    def execute(self, citation_id: str, style_id: str, **kwargs) -> CitationResponse:
+    def execute(self,
+            citation_id: str,
+            style_id: str,
+            project_service: Optional[ProjectService] = None,
+            get_project_dependency: Optional[Callable] = None,
+            **kwargs,
+        ) -> CitationResponse:
         '''
         Render a citation in the requested style.
 
@@ -99,6 +105,10 @@ class RenderCitation(DomainEvent):
         :type citation_id: str
         :param style_id: The citation style identifier.
         :type style_id: str
+        :param project_service: The catalog project service.
+        :type project_service: Optional[ProjectService]
+        :param get_project_dependency: Factory for a project-scoped get_dependency.
+        :type get_project_dependency: Optional[Callable]
         :param kwargs: Additional keyword arguments.
         :type kwargs: dict
         :return: The citation response with both renderings.
@@ -114,13 +124,19 @@ class RenderCitation(DomainEvent):
             id=citation_id,
         )
 
-        # Resolve the parent source.
-        source = self.source_service.get(citation.source_id)
-        self.verify(
-            source is not None,
-            SOURCE_NOT_FOUND_ID,
-            message=f'Source not found: {citation.source_id}.',
-            id=citation.source_id,
+        # Follow a live pointer to origin excerpt, locator, and Source.
+        display = citation_for_read(
+            self,
+            citation,
+            project_service,
+            get_project_dependency,
+        )
+        source = source_for_read(
+            self,
+            citation,
+            self.source_service,
+            project_service,
+            get_project_dependency,
         )
 
         # Resolve the style rulebook.
@@ -140,8 +156,8 @@ class RenderCitation(DomainEvent):
             'title': source.title,
             'container_title': source.container_title or '',
             'publisher': source.publisher or '',
-            'locator': citation.normalize_locator(),
-            'locator_display': citation.locator_display(source.locator_convention),
+            'locator': display.normalize_locator(),
+            'locator_display': display.locator_display(source.locator_convention),
             'medium': source.medium,
         }
 
@@ -149,9 +165,9 @@ class RenderCitation(DomainEvent):
         formatted_reference = format_template(rule.reference_template, fields)
         in_text_citation = format_template(rule.in_text_template, fields)
 
-        # Return the composed, unpersisted response.
+        # Return origin excerpt/locator so a link pointer is never quoted.
         return CitationResponse.from_aggregate(
-            citation,
+            display,
             formatted_reference=formatted_reference,
             in_text_citation=in_text_citation,
         )

@@ -191,6 +191,11 @@ class LitReviewFeatureContext(FeatureContext):
         if not (feature.id or '').startswith(CATALOG_FEATURE_PREFIX):
             catalog_get_dependency = self.get_dependency
             self._bind_project_store(request, feature.id)
+            self.context_data = dict(self.context_data or {})
+            self.context_data['project_service'] = catalog_get_dependency(
+                PROJECT_SERVICE_ID,
+            )
+            self.context_data['get_project_dependency'] = self.get_project_dependency
             if feature.id in TRANSFER_FEATURE_IDS:
                 self._bind_dest_store(
                     request,

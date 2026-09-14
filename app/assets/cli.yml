@@ -186,14 +186,17 @@ cli:
           - name_or_flags: ["project_id"]
             description: "The project identifier of the research store."
           - name_or_flags: ["-s", "--source-id"]
-            required: true
+            required: false
             description: "The identifier of the source this citation was pulled from."
           - name_or_flags: ["-l", "--locator"]
-            required: true
+            required: false
             description: "The precise locator of the excerpt within its source."
           - name_or_flags: ["-e", "--excerpt"]
             required: true
-            description: "The quoted or paraphrased text pulled from the source."
+            description: "Evidence text, or ORIGIN_PROJECT:ORIGIN_CITATION_ID for --type link."
+          - name_or_flags: ["--type"]
+            required: false
+            description: "Citation type: default (local evidence) or link (live pointer)."
           - name_or_flags: ["--context-note"]
             required: false
             description: "An optional note describing the excerpt's surrounding context."
@@ -208,8 +211,17 @@ cli:
           - name_or_flags: ["project_id"]
             description: "The project identifier of the research store."
           - name_or_flags: ["-s", "--source-id"]
-            required: true
-            description: "The source identifier to filter citations by."
+            required: false
+            description: "Optional source identifier to filter citations by."
+      show:
+        name: Show Citation
+        key: show
+        group_key: citation
+        args:
+          - name_or_flags: ["project_id"]
+            description: "The project identifier of the research store."
+          - name_or_flags: ["id"]
+            description: "The citation identifier to show."
       update:
         name: Update Citation
         key: update
