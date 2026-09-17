@@ -14,6 +14,7 @@ from tiferet_h5 import TableObject
 from tiferet.mappers.core import Aggregate, TransferObject
 
 from ..domain.citation import (
+    CITATION_TYPE_COL_BYTES,
     MAX_CONTEXT_NOTE_BYTES,
     MAX_EXCERPT_BYTES,
     MAX_TITLE_BYTES,
@@ -115,6 +116,7 @@ class CitationTableObject(Citation, TableObject):
         'excerpt': tables.StringCol(MAX_EXCERPT_BYTES),
         'context_note': tables.StringCol(MAX_CONTEXT_NOTE_BYTES),
         'title': tables.StringCol(MAX_TITLE_BYTES),
+        'type': tables.StringCol(CITATION_TYPE_COL_BYTES),
         'created_at': tables.Int64Col(),
     }
 

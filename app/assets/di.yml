@@ -61,6 +61,9 @@ services:
   get_citation_event:
     module_path: app.events.citation
     class_name: GetCitation
+  show_citation_event:
+    module_path: app.events.citation
+    class_name: ShowCitation
   list_citations_for_source_event:
     module_path: app.events.citation
     class_name: ListCitationsForSource

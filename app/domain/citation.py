@@ -4,7 +4,7 @@
 
 # ** core
 from time import time
-from typing import Optional
+from typing import Optional, Tuple
 from uuid import uuid4
 import re
 
@@ -18,6 +18,21 @@ from tiferet.domain.core import DomainObject
 
 # ** constant: page_range_locator_pattern
 PAGE_RANGE_LOCATOR_PATTERN = re.compile(r'^(\d+)-(\d+)$')
+
+# ** constant: citation_type_default
+CITATION_TYPE_DEFAULT = 'default'
+
+# ** constant: citation_type_link
+CITATION_TYPE_LINK = 'link'
+
+# ** constant: allowed_citation_types
+ALLOWED_CITATION_TYPES = (
+    CITATION_TYPE_DEFAULT,
+    CITATION_TYPE_LINK,
+)
+
+# ** constant: citation_type_col_bytes
+CITATION_TYPE_COL_BYTES = 16
 
 # ** constant: slide_range_locator_convention
 # Not imported from app.domain.source: the domain layer does not import
@@ -34,14 +49,42 @@ MAX_EXCERPT_BYTES = 10_000_000
 # ** constant: max_context_note_bytes
 MAX_CONTEXT_NOTE_BYTES = 10_000_000
 
+# *** functions
+
+# ** function: parse_citation_link_pointer
+def parse_citation_link_pointer(excerpt: str) -> Tuple[str, str]:
+    '''
+    Split a link citation excerpt into origin project id and citation id.
+
+    :param excerpt: The stored pointer, exactly ``project_id:citation_id``.
+    :type excerpt: str
+    :return: The origin catalog id and origin citation id.
+    :rtype: Tuple[str, str]
+    :raises ValueError: If the pointer is not exactly one colon-separated pair.
+    '''
+
+    # A pointer is exactly one colon between two non-empty ids.
+    if not isinstance(excerpt, str) or excerpt.count(':') != 1:
+        raise ValueError(
+            'A link citation excerpt must be exactly project_id:citation_id.'
+        )
+    project_id, citation_id = excerpt.split(':')
+    if not project_id or not citation_id:
+        raise ValueError(
+            'A link citation excerpt must be exactly project_id:citation_id.'
+        )
+
+    # Return the origin catalog id and origin citation id.
+    return project_id, citation_id
+
 # *** models
 
 # ** model: citation
 class Citation(DomainObject):
     '''
-    An excerpt or paraphrase pulled from a source, together with its locator
-    and enough surrounding context to be understood on its own. The atomic
-    unit of evidence in this domain.
+    An excerpt or paraphrase pulled from a source, or a live pointer to one,
+    together with its locator and enough surrounding context to be understood
+    on its own. The atomic unit of evidence in this domain.
     '''
 
     # * attribute: id
@@ -52,20 +95,29 @@ class Citation(DomainObject):
 
     # * attribute: source_id
     source_id: str = Field(
-        ...,
+        default='',
         description='The identifier of the source this citation was pulled from.',
     )
 
     # * attribute: locator
     locator: str = Field(
-        ...,
+        default='',
         description='The precise locator of the excerpt within its source (e.g. a page range).',
     )
 
     # * attribute: excerpt
     excerpt: str = Field(
         ...,
-        description='The quoted or paraphrased text pulled from the source.',
+        description='The quoted or paraphrased text, or a live origin pointer.',
+    )
+
+    # * attribute: type
+    type: str = Field(
+        default=CITATION_TYPE_DEFAULT,
+        description=(
+            'Citation capture shape: default stores local evidence; '
+            'link stores a live project_id:citation_id pointer in excerpt.'
+        ),
     )
 
     # * attribute: context_note
@@ -88,6 +140,46 @@ class Citation(DomainObject):
         default_factory=lambda: int(time()),
         description='The unix creation timestamp (UTC seconds since epoch).',
     )
+
+    # * method: _normalize_type (validator)
+    @model_validator(mode='before')
+    @classmethod
+    def _normalize_type(cls, values: dict) -> dict:
+        '''
+        Migrate omit/blank/legacy-missing type to default; reject unknowns.
+
+        :param values: The raw field values before construction.
+        :type values: dict
+        :return: The updated field values dict.
+        :rtype: dict
+        '''
+
+        # Only inspect a plain values dict for this construction/assignment call.
+        if not isinstance(values, dict):
+            return values
+
+        # Decode a stored StringCol value and strip padding before classifying.
+        citation_type = values.get('type')
+        if isinstance(citation_type, bytes):
+            citation_type = citation_type.decode('utf-8')
+        if isinstance(citation_type, str):
+            citation_type = citation_type.rstrip('\x00').strip()
+
+        # Omit, blank, or legacy-missing type is the default capture shape.
+        if citation_type is None or citation_type == '':
+            values['type'] = CITATION_TYPE_DEFAULT
+            return values
+
+        # Unknown values are rejected rather than coerced.
+        if citation_type not in ALLOWED_CITATION_TYPES:
+            raise ValueError(
+                f'Unknown citation type {citation_type!r}; '
+                f'allowed values are {ALLOWED_CITATION_TYPES}.'
+            )
+        values['type'] = citation_type
+
+        # Return the (possibly updated) values.
+        return values
 
     # * method: _normalize_title (validator)
     @model_validator(mode='before')
@@ -162,6 +254,43 @@ class Citation(DomainObject):
 
         # Return the unchanged values.
         return values
+
+    # * method: _validate_citation_shape (validator)
+    @model_validator(mode='after')
+    def _validate_citation_shape(self):
+        '''
+        Enforce default capture fields or a well-formed link pointer.
+
+        :return: The validated citation.
+        :rtype: Citation
+        '''
+
+        # A link stores a live pointer in excerpt; local source/locator unused.
+        if self.type == CITATION_TYPE_LINK:
+            parse_citation_link_pointer(self.excerpt)
+            return self
+
+        # A default citation still requires local source, locator, and excerpt.
+        if not self.source_id or not self.locator or not self.excerpt:
+            raise ValueError(
+                'A default citation requires source_id, locator, and excerpt.'
+            )
+
+        # Return the validated citation.
+        return self
+
+    # * method: is_link (property)
+    @property
+    def is_link(self) -> bool:
+        '''
+        Whether this citation is a live origin pointer rather than local evidence.
+
+        :return: True when type is link.
+        :rtype: bool
+        '''
+
+        # Link citations resolve excerpt, locator, and Source from origin.
+        return self.type == CITATION_TYPE_LINK
 
     # * method: normalize_locator
     def normalize_locator(self) -> str:

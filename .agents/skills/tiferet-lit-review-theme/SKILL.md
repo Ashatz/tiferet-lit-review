@@ -46,6 +46,7 @@ Errors you may see:
 - `THEME_NOT_FOUND` — bad theme id
 - `CITATION_NOT_FOUND` — bad citation id
 - `LINKAGE_NOT_FOUND` — no linkage exists between the named citation and theme (`theme retire` / `theme reinstate`)
+- `CITATION_LINK_ORIGIN_NOT_FOUND` — a linked `type=link` citation's origin project or default citation is missing at resolve time
 
 There is no hard-delete `theme unlink` at v1 — `theme retire` is the
 unlinking mechanism, and it is reversible via `theme reinstate`. Retirement
@@ -62,6 +63,12 @@ linked to the theme, then calls the injected `ThemeSynthesisService`. A
 retired linkage's excerpt never reaches the synthesizer. The shipped
 implementation (`NaiveThemeSynthesizer`) concatenates up to 10 lines of
 `Author (Year): excerpt`, most-recently-linked first.
+
+A `type=link` citation is a live pointer, not a second excerpt and not a
+citation–theme Linkage. Synthesis and `theme show` use the origin excerpt and
+the **local** context_note; origin context_note is not substituted. Missing
+origin fails visibly (`CITATION_LINK_ORIGIN_NOT_FOUND`) and must not quote the
+pointer string as a quotation.
 
 Treat that string as a working collage, not finished scholarly prose. Prefer
 `theme update -d` for a curated narrative. The seam is what matters: a later

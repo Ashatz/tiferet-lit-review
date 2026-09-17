@@ -80,6 +80,11 @@ features:
       steps:
         - name: List Citations
           service_id: list_citations_for_source_event
+    show:
+      name: Show Citation
+      steps:
+        - name: Show Citation
+          service_id: show_citation_event
     update:
       name: Update Citation
       steps:

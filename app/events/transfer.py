@@ -99,6 +99,7 @@ def clone_citation(citation: CitationAggregate) -> CitationAggregate:
         excerpt=citation.excerpt,
         context_note=citation.context_note,
         title=citation.title,
+        type=citation.type,
         created_at=citation.created_at,
     )
 
@@ -209,6 +210,7 @@ def citation_content_matches(
         and dest.excerpt == origin.excerpt
         and dest.context_note == origin.context_note
         and dest.title == origin.title
+        and dest.type == origin.type
     )
 
 # ** function: write_source_copy
@@ -659,13 +661,14 @@ class CopyCitation(CitationEvent):
             id=id,
         )
 
-        # Ensure dest has the parent source, auto-copying when dest lacks it.
-        self._ensure_parent_source(
-            origin,
-            dest_source_service,
-            dest_activity_service,
-            project_id,
-        )
+        # A link transfers the pointer row only; default citations copy parent source.
+        if not origin.is_link:
+            self._ensure_parent_source(
+                origin,
+                dest_source_service,
+                dest_activity_service,
+                project_id,
+            )
 
         # Write the citation row under the same citation id and source_id.
         copied = clone_citation(origin)
@@ -804,12 +807,13 @@ class MoveCitation(CopyCitation):
         # Copy unless dest already holds matching citation content.
         dest = dest_citation_service.get(id)
         if dest is None:
-            self._ensure_parent_source(
-                origin,
-                dest_source_service,
-                dest_activity_service,
-                project_id,
-            )
+            if not origin.is_link:
+                self._ensure_parent_source(
+                    origin,
+                    dest_source_service,
+                    dest_activity_service,
+                    project_id,
+                )
             dest = clone_citation(origin)
             dest_citation_service.save(dest)
             record_transfer_activity(
@@ -826,12 +830,13 @@ class MoveCitation(CopyCitation):
                 message=f'A citation with ID {id} already exists in the destination project.',
                 id=id,
             )
-            self.verify(
-                dest_source_service.get(origin.source_id) is not None,
-                SOURCE_NOT_FOUND_ID,
-                message=f'Source not found: {origin.source_id}.',
-                id=origin.source_id,
-            )
+            if not origin.is_link:
+                self.verify(
+                    dest_source_service.get(origin.source_id) is not None,
+                    SOURCE_NOT_FOUND_ID,
+                    message=f'Source not found: {origin.source_id}.',
+                    id=origin.source_id,
+                )
 
         # Never remove origin before dest verification succeeds.
         dest = dest_citation_service.get(id)
@@ -841,12 +846,13 @@ class MoveCitation(CopyCitation):
             message=f'Destination citation {id} is incomplete.',
             id=id,
         )
-        self.verify(
-            dest_source_service.get(origin.source_id) is not None,
-            SOURCE_NOT_FOUND_ID,
-            message=f'Source not found: {origin.source_id}.',
-            id=origin.source_id,
-        )
+        if not origin.is_link:
+            self.verify(
+                dest_source_service.get(origin.source_id) is not None,
+                SOURCE_NOT_FOUND_ID,
+                message=f'Source not found: {origin.source_id}.',
+                id=origin.source_id,
+            )
 
         # Origin-only remove is repository-private and leaves the parent source.
         remove_origin_artifact(self.citation_service, id)

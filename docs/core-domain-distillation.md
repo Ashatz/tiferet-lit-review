@@ -128,12 +128,15 @@ concept a future medium requires (see Section 4). A locator's stored shape and
 its rendered label follow the Source's declared locator convention; a numeric
 range alone does not imply pages.
 
-**Citation** — an excerpt or paraphrase pulled from a source, together with its
-locator and an optional surrounding-context note that make it intelligible on
-its own. The atomic unit of evidence in this domain. Its excerpt and context
+**Citation** — an excerpt or paraphrase pulled from a source, together with its locator
+and an optional surrounding-context note that make it intelligible on its
+own. The atomic unit of evidence in this domain. Its excerpt and context
 note are evidence text, not short metadata: the persistence boundary must
 preserve their stored text up to a declared capacity and reject oversize input
-rather than silently cutting it.
+rather than silently cutting it. A Citation also has a **type**: `default`
+stores local `source_id`, `locator`, and evidence excerpt; `link` stores a live
+pointer `project_id:citation_id` in excerpt instead of passage text. A link is
+not a second excerpt and not a citation–theme Linkage.
 
 **Citation title** — an optional, researcher-authored label for a single
 citation: a short name for that particular excerpt, not the work it came from.
@@ -331,13 +334,19 @@ established at capture.
 *Pull an excerpt from a source, at a precise locator, with enough context to
 stand alone.*
 
-Candidate event: `AddCitation`. A citation always refers to exactly one source
-and carries one locator, excerpt text, an optional surrounding-context note,
-and an optional citation title — a researcher-authored label for that specific
-excerpt, never the source's bibliographic title. `UpdateCitation` may replace
-or explicitly clear that title independently of the excerpt, locator, or
-context note. Evidence text is retained up to its declared 10,000,000-byte UTF-8
+Candidate event: `AddCitation`. A default citation always refers to exactly one
+source and carries one locator, excerpt text, an optional surrounding-context
+note, and an optional citation title — a researcher-authored label for that
+specific excerpt, never the source's bibliographic title. A `type=link`
+citation stores `project_id:citation_id` in excerpt; origin excerpt, locator,
+and Source are resolved live at read, render, and synthesis. Local title,
+context_note, and theme Linkages stay on the link row. `UpdateCitation` may
+replace or explicitly clear that title independently of the excerpt, locator, or
+context note; it must not turn a default citation into a link or retarget a
+pointer. Evidence text is retained up to its declared 10,000,000-byte UTF-8
 capacity; an over-capacity value is rejected visibly rather than truncated.
+Copy/move of a link transfers the link row only, not the origin citation or
+source.
 
 **Agnostic**: the shape of a citation — source reference, locator, excerpt,
 optional context note, optional title — is uniform no matter the source medium.
@@ -579,8 +588,11 @@ each is load-bearing for a specific later behavior:
   the work it describes. It neither substitutes for a passage's Citation
   context note nor becomes an Abstract or a second classification system.
 - **Citation → Source** is what makes rendering (5.7) possible at all: a
-  citation carries only a locator, not a bibliographic record, so rendering
-  always resolves through the source it names.
+  default citation carries only a locator, not a bibliographic record, so
+  rendering always resolves through the source it names. A `type=link`
+  citation follows `project_id:citation_id` to the origin default citation and
+  that origin's Source; missing origin fails visibly and must not treat the
+  pointer string as a quotation.
 - **Citation → Theme** (via linkage) is what makes theme synthesis (5.5)
   possible: a theme's description is a function of *all* its active linkages,
   not the newest one, so revising a theme requires reading its full active
@@ -711,6 +723,12 @@ separated from day one:
 - Treating evidence text as short metadata, or allowing a storage boundary to
   silently truncate it, would turn a citation into an inaccurate record while
   leaving no domain-visible signal that its evidence has been lost.
+- Treating a `type=link` pointer as passage text, or copying origin excerpt and
+  Source onto the link row, would freeze a second excerpt (that is RFP-16 copy)
+  instead of keeping a live reference.
+- Overloading citation–theme Linkage as this cross-project pointer would collapse
+  two different nouns: Linkage attaches evidence to a theme; Citation.type=link
+  points at another citation.
 
 Naming these now is what the first implementation slice (Section 10) should
 be built to avoid.

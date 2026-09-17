@@ -109,9 +109,13 @@ A locator like `12`, `p. 12`, or `12–14` (en-dash) is invalid.
   `--clear-overview-note` to remove either. Medium cannot be changed this way.
 - `source attach <id> -f PATH [-n NAME]` — attach a supplied local file to
   its source (see step 4). `source download <id> [-o DIR]` retrieves it later.
-- `citation list -s/--source-id` — required filter; returns that source only.
+- `citation list [-s/--source-id]` — optional source filter; omit `-s` to list
+  every local row (id, type, title, pointer/excerpt) without opening origin stores.
 - `citation update <id>` plus any of `-l`, `-e`, `--context-note`, `-n`/`--title`,
   or `--clear-title` (clears an existing title without touching other fields).
+  Do not retarget a `type=link` pointer this way.
+- `citation add --type link -e ORIGIN_PROJECT:ORIGIN_CITATION_ID` creates a live
+  pointer, not a second excerpt. Do not copy origin source/citation to make a link.
 
 Theme commands live in `tiferet-lit-review-theme`. After capture, offer
 linking; do not apply a theme without confirmation.

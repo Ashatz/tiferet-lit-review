@@ -8,7 +8,13 @@ import tables
 from pydantic import ValidationError
 
 # ** app
-from app.domain.citation import MAX_CONTEXT_NOTE_BYTES, MAX_EXCERPT_BYTES
+from app.domain.citation import (
+    CITATION_TYPE_COL_BYTES,
+    CITATION_TYPE_DEFAULT,
+    CITATION_TYPE_LINK,
+    MAX_CONTEXT_NOTE_BYTES,
+    MAX_EXCERPT_BYTES,
+)
 from app.mappers.citation import CitationAggregate, CitationTableObject
 from app.repos.citation import (
     CITATIONS_BACKUP_LEAF,
@@ -231,6 +237,8 @@ def assert_current_compressed_schema(table) -> None:
     # Widths and compression are the current on-disk contract.
     assert table.coldtypes['excerpt'].itemsize == MAX_EXCERPT_BYTES
     assert table.coldtypes['context_note'].itemsize == MAX_CONTEXT_NOTE_BYTES
+    assert 'type' in table.colnames
+    assert table.coldtypes['type'].itemsize == CITATION_TYPE_COL_BYTES
     assert table.filters.complib == 'zlib'
     assert table.filters.complevel == 5
 
@@ -323,6 +331,7 @@ def test_get_and_list_resolve_legacy_table_without_upgrading(repo):
     listed = repo.list()
     assert fetched is not None
     assert fetched.title is None
+    assert fetched.type == CITATION_TYPE_DEFAULT
     assert fetched.excerpt == LEGACY_ROW_ONE['excerpt']
     assert {c.id for c in listed} == {LEGACY_ROW_ONE['id'], LEGACY_ROW_TWO['id']}
     assert all(c.title is None for c in listed)
@@ -374,7 +383,9 @@ def test_save_upgrades_legacy_table_preserving_existing_rows(repo):
         assert loaded.excerpt == expected['excerpt']
         assert loaded.created_at == expected['created_at']
         assert loaded.title is None
+        assert loaded.type == CITATION_TYPE_DEFAULT
     assert third.title == 'New evidence'
+    assert third.type == CITATION_TYPE_DEFAULT
 
 # ** test_int: test_save_recovers_by_promoting_valid_staging
 def test_save_recovers_by_promoting_valid_staging(repo):
@@ -719,3 +730,50 @@ def test_remove_for_transfer_drops_only_the_citation_row(repo):
     assert kept is not None
     assert kept.excerpt == 'Keep this excerpt.'
     assert [citation.id for citation in repo.list()] == ['keep-citation']
+
+# ** test_int: test_save_and_get_round_trip_link_type
+def test_save_and_get_round_trip_link_type(repo):
+    '''
+    A link citation persists type and pointer excerpt without a local source.
+
+    :param repo: The temporary citation repository.
+    :type repo: CitationH5Repository
+    '''
+
+    # Save a link row whose excerpt is the live pointer, not passage text.
+    link = CitationAggregate(
+        id='link-citation',
+        excerpt='kabbalah:origin-citation',
+        context_note='Tiferet design note.',
+        title='Linked passage',
+        type=CITATION_TYPE_LINK,
+    )
+    repo.save(link)
+
+    # The live table has a type column; the row reloads as type=link.
+    with repo.client() as h5:
+        table = h5.get_table(CITATIONS_TABLE_PATH)
+        assert_current_compressed_schema(table)
+    reloaded = repo.get('link-citation')
+    assert reloaded.type == CITATION_TYPE_LINK
+    assert reloaded.excerpt == 'kabbalah:origin-citation'
+    assert reloaded.context_note == 'Tiferet design note.'
+    assert reloaded.title == 'Linked passage'
+    assert reloaded.source_id == ''
+    assert reloaded.locator == ''
+
+# ** test_int: test_unknown_citation_type_is_rejected
+def test_unknown_citation_type_is_rejected():
+    '''
+    An unknown type value is rejected rather than persisted.
+    '''
+
+    # Constructing with an unknown type fails before any row changes.
+    with pytest.raises(ValidationError):
+        CitationAggregate(
+            id='bad-type',
+            source_id='source-1',
+            locator='1-1',
+            excerpt='An excerpt.',
+            type='copy',
+        )

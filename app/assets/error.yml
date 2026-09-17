@@ -99,3 +99,23 @@ errors:
     message:
       - lang: en_US
         text: "Cannot move source {id} while citations still reference it."
+  CITATION_LINK_ORIGIN_NOT_FOUND:
+    name: Citation Link Origin Not Found
+    message:
+      - lang: en_US
+        text: "Citation link origin not found: {pointer}."
+  INVALID_CITATION_TYPE:
+    name: Invalid Citation Type
+    message:
+      - lang: en_US
+        text: "Unknown citation type '{type}'."
+  INVALID_CITATION_LINK_POINTER:
+    name: Invalid Citation Link Pointer
+    message:
+      - lang: en_US
+        text: "A link citation excerpt must be exactly project_id:citation_id."
+  CITATION_LINK_IMMUTABLE:
+    name: Citation Link Immutable
+    message:
+      - lang: en_US
+        text: "A link citation cannot retarget its pointer or change type."
