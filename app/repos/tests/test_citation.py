@@ -2,10 +2,14 @@
 
 # *** imports
 
+# ** core
+from unittest import mock
+
 # ** infra
 import pytest
 import tables
 from pydantic import ValidationError
+from tiferet_h5.utils import H5Client
 
 # ** app
 from app.domain.citation import (
@@ -283,6 +287,112 @@ def repo(tmp_path) -> CitationH5Repository:
 
 # *** tests
 
+# ** test_int: test_list_ids_reads_once_and_maps_only_matches
+def test_list_ids_reads_once_and_maps_only_matches(repo):
+    '''
+    ID selection reads once and maps matching legacy rows in table order.
+
+    :param repo: The temporary citation repository.
+    :type repo: CitationH5Repository
+    '''
+
+    # Build a legacy table to also exercise missing title/type defaults.
+    write_legacy_table(repo, [LEGACY_ROW_ONE, LEGACY_ROW_TWO])
+    requested = [LEGACY_ROW_TWO['id'], 'absent', LEGACY_ROW_ONE['id']]
+
+    # Spy on the real HDF5 boundary while selecting in reverse order.
+    with mock.patch.object(
+            H5Client,
+            'read_rows',
+            autospec=True,
+            side_effect=H5Client.read_rows,
+        ) as read_rows:
+        listed = repo.list(ids=requested)
+        assert read_rows.call_count == 1
+        assert read_rows.call_args.args[1] == CITATIONS_TABLE_PATH
+
+    # Table order and every stored field survive legacy defaults.
+    assert [citation.id for citation in listed] == [
+        LEGACY_ROW_ONE['id'],
+        LEGACY_ROW_TWO['id'],
+    ]
+    for citation, row in zip(listed, [LEGACY_ROW_ONE, LEGACY_ROW_TWO]):
+        assert_stored_fields(citation, row)
+        assert citation.type == CITATION_TYPE_DEFAULT
+        assert citation.title is None
+
+    # Unrelated rows are never mapped on a restricted selection.
+    with mock.patch.object(
+            CitationTableObject,
+            'from_row',
+            wraps=CitationTableObject.from_row,
+        ) as from_row:
+        selected = repo.list(ids=[LEGACY_ROW_TWO['id']])
+        assert [citation.id for citation in selected] == [LEGACY_ROW_TWO['id']]
+        from_row.assert_called_once()
+
+# ** test_int: test_list_ids_intersects_source_filter
+def test_list_ids_intersects_source_filter(repo):
+    '''
+    ID selection intersects source_id without changing unfiltered behavior.
+
+    :param repo: The temporary citation repository.
+    :type repo: CitationH5Repository
+    '''
+
+    # Store rows with distinct source IDs in a title-aware legacy schema.
+    write_pre_rfp9_table(repo, [RFP9_ROW_ONE, RFP9_ROW_TWO])
+    ids = [RFP9_ROW_ONE['id'], RFP9_ROW_TWO['id']]
+
+    # Both filters must match; missing IDs select nothing.
+    selected = repo.list(ids=ids, source_id=RFP9_ROW_TWO['source_id'])
+    assert [citation.id for citation in selected] == [RFP9_ROW_TWO['id']]
+    assert_stored_fields(selected[0], RFP9_ROW_TWO)
+    assert repo.list(
+        ids=[RFP9_ROW_ONE['id']],
+        source_id=RFP9_ROW_TWO['source_id'],
+    ) == []
+    assert repo.list(ids=['absent']) == []
+    assert [citation.id for citation in repo.list(ids=None)] == ids
+    assert [citation.id for citation in repo.list()] == ids
+    assert [citation.id for citation in repo.list(source_id=RFP9_ROW_ONE['source_id'])] == [
+        RFP9_ROW_ONE['id'],
+    ]
+
+# ** test_int: test_list_empty_ids_skips_store_access
+@pytest.mark.parametrize('ids', [[], (), set()])
+def test_list_empty_ids_skips_store_access(repo, ids):
+    '''
+    Empty ID selections return without opening or creating a store.
+
+    :param repo: The temporary citation repository.
+    :type repo: CitationH5Repository
+    :param ids: An empty ID collection.
+    :type ids: list | tuple | set
+    '''
+
+    # An empty selection has no reason to acquire an HDF5 lock.
+    with mock.patch.object(repo, 'client') as client:
+        assert repo.list(ids=ids) == []
+        client.assert_not_called()
+    assert repo.file_exists() is False
+
+# ** test_int: test_list_ids_missing_table
+def test_list_ids_missing_table(repo):
+    '''
+    A missing citations table returns an empty selection.
+
+    :param repo: The temporary citation repository.
+    :type repo: CitationH5Repository
+    '''
+
+    # Create an empty file without materializing a citation table.
+    with repo.client():
+        pass
+
+    # A nonempty selection still tolerates the absent table.
+    assert repo.list(ids=['absent']) == []
+
 # ** test_int: test_save_and_get_round_trip_with_and_without_title
 def test_save_and_get_round_trip_with_and_without_title(repo):
     '''
@@ -491,6 +601,11 @@ def test_save_round_trips_exact_capacity_boundary(repo):
     assert len(listed) == 1
     assert listed[0].excerpt == exact_excerpt
     assert listed[0].context_note == exact_note
+
+    # ID-filtered reads retain full-capacity text without truncation.
+    selected = repo.list(ids=['boundary-citation'])
+    assert len(selected) == 1
+    assert selected[0].model_dump() == reloaded.model_dump()
 
 # ** test_int: test_save_upgrades_table_with_undersized_text_columns
 def test_save_upgrades_table_with_undersized_text_columns(repo):
@@ -761,6 +876,11 @@ def test_save_and_get_round_trip_link_type(repo):
     assert reloaded.title == 'Linked passage'
     assert reloaded.source_id == ''
     assert reloaded.locator == ''
+
+    # Bulk ID reads preserve the stored link pointer and its local fields.
+    selected = repo.list(ids=['link-citation'])
+    assert len(selected) == 1
+    assert selected[0].model_dump() == reloaded.model_dump()
 
 # ** test_int: test_unknown_citation_type_is_rejected
 def test_unknown_citation_type_is_rejected():

@@ -47,9 +47,9 @@ class CitationH5Repository(CitationService, H5Repository):
     HDF5 table-based repository for Citation domain objects. One PyTables row
     per citation, in a single table at CITATIONS_TABLE_PATH.
 
-    Filtering (by id or source_id) is done in-memory over read_rows results.
-    Acceptable at v1 scale (a single researcher's working set); revisit if the
-    citations table grows large enough to warrant an in-kernel query.
+    Filtering is done in-memory over read_rows results. Bulk ID selection
+    shares one table read across callers' linked citations rather than
+    repeating a full scan for each identifier.
 
     ``save`` is an id-based upsert: an existing row with the same id is
     overwritten in place; otherwise a new row is appended.
@@ -111,21 +111,33 @@ class CitationH5Repository(CitationService, H5Repository):
     # * method: list
     def list(self, **filters) -> List[CitationAggregate]:
         '''
-        List citations, optionally filtered by source_id.
+        List citations, optionally filtered by source_id and IDs.
 
-        :param filters: Accepts an optional source_id filter.
+        :param filters: Optional source_id and ids criteria, combined by
+            intersection. ids=None selects all IDs; an empty collection
+            selects none.
         :type filters: dict
         :return: The matching citation aggregates, in insertion order.
         :rtype: List[CitationAggregate]
         '''
 
-        # Read all rows, guarding against a missing table.
+        # Normalize an explicit ID selection before opening the store.
+        ids = filters.get('ids')
+        selected_ids = set(ids) if ids is not None else None
+        if selected_ids is not None and not selected_ids:
+            return []
+
+        # Read all rows once, guarding against a missing table.
         with self.client() as h5:
             if not h5.node_exists(CITATIONS_TABLE_PATH):
                 return []
             rows = h5.read_rows(CITATIONS_TABLE_PATH)
 
-        # Apply the optional source_id filter in-memory.
+        # Select requested IDs before mapping unrelated citation payloads.
+        if selected_ids is not None:
+            rows = [row for row in rows if row.get('id') in selected_ids]
+
+        # Intersect the optional source_id filter with the ID selection.
         source_id = filters.get('source_id')
         if source_id is not None:
             rows = [row for row in rows if row.get('source_id') == source_id]

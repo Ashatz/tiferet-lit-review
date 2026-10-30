@@ -544,6 +544,7 @@ def test_theme_show_uses_origin_excerpt_and_local_note(origin_citation, source):
         id=LINK_CITATION_ID,
         excerpt=POINTER,
         context_note=LOCAL_CONTEXT_NOTE,
+        title='Local link title',
         type=CITATION_TYPE_LINK,
     )
     theme = ThemeAggregate(
@@ -560,7 +561,7 @@ def test_theme_show_uses_origin_excerpt_and_local_note(origin_citation, source):
         LinkageAggregate(citation_id=LINK_CITATION_ID, theme_id='tiferet-design'),
     ]
     citation_service = mock.Mock(spec=CitationService)
-    citation_service.get.return_value = link
+    citation_service.list.return_value = [link]
     result = DomainEvent.handle(
         ShowTheme,
         dependencies={
@@ -578,6 +579,69 @@ def test_theme_show_uses_origin_excerpt_and_local_note(origin_citation, source):
     assert shown.context_note == LOCAL_CONTEXT_NOTE
     assert ORIGIN_CONTEXT_NOTE not in shown.context_note
     assert shown.excerpt != POINTER
+    assert shown.locator == origin_citation.locator
+    assert shown.source_id == origin_citation.source_id
+    assert shown.title == 'Local link title'
+    assert shown.created_at == link.created_at
+    assert link.excerpt == POINTER
+    citation_service.list.assert_called_once_with(ids=[LINK_CITATION_ID])
+    citation_service.get.assert_not_called()
+    citation_service.save.assert_not_called()
+
+# ** test: test_theme_show_missing_origin_keeps_structured_error
+@pytest.mark.parametrize('is_retired', [False, True])
+@pytest.mark.parametrize('include_retired', [False, True])
+def test_theme_show_missing_origin_keeps_structured_error(
+        is_retired,
+        include_retired,
+    ):
+    '''
+    Bulk loading retains missing-origin errors even for hidden retired links.
+
+    :param is_retired: Whether the linkage is retired.
+    :type is_retired: bool
+    :param include_retired: Whether the retired view is requested.
+    :type include_retired: bool
+    '''
+
+    # The local link exists but its origin project does not.
+    link = CitationAggregate(
+        id=LINK_CITATION_ID,
+        excerpt=POINTER,
+        type=CITATION_TYPE_LINK,
+    )
+    theme = ThemeAggregate(id='theme', name='Theme')
+    linkage = LinkageAggregate(citation_id=link.id, theme_id=theme.id)
+    if is_retired:
+        linkage.retire(reason='Retired evidence.')
+    theme_service = mock.Mock(spec=ThemeService)
+    linkage_service = mock.Mock(spec=LinkageService)
+    citation_service = mock.Mock(spec=CitationService)
+    project_service = mock.Mock(spec=ProjectService)
+    theme_service.get.return_value = theme
+    linkage_service.list.return_value = [linkage]
+    citation_service.list.return_value = [link]
+    project_service.get.return_value = None
+
+    # Origin resolution still precedes the active/retired display split.
+    with pytest.raises(TiferetError) as exc_info:
+        DomainEvent.handle(
+            ShowTheme,
+            dependencies={
+                'theme_service': theme_service,
+                'linkage_service': linkage_service,
+                'citation_service': citation_service,
+            },
+            id=theme.id,
+            include_retired=include_retired,
+            project_service=project_service,
+            get_project_dependency=mock.Mock(),
+        )
+
+    # Neither a pointer string nor a silent omission replaces the error.
+    assert exc_info.value.error_code == CITATION_LINK_ORIGIN_NOT_FOUND_ID
+    citation_service.get.assert_not_called()
+    citation_service.save.assert_not_called()
 
 # ** test: test_copy_and_move_link_transfer_row_only
 def test_copy_and_move_link_transfer_row_only(tmp_path, origin_citation):

@@ -8,7 +8,7 @@ description: Capture a source and its citations into the tiferet-lit-review know
 Teach an agent how to turn supplied reading material into live CLI calls.
 This skill covers source, citation, and theme capture — including source
 document attachment/download — as implemented on `v1.x-proto` through
-RFP-13 (Activity Log). It does not extract text itself. Abstract composition,
+`v1.0.0b3`. It does not extract text itself. Abstract composition,
 Outline assembly, and Paper drafting are implemented elsewhere in the app,
 but are separate, researcher-initiated workflows outside this skill's scope
 (see § Boundary with later workflows).
@@ -35,23 +35,36 @@ Run every command from the repository root, with the project venv active
 python lit_review_cli.py <group> <command> [flags]
 ```
 
+Every store command takes a leading positional `project_id`. Resolve it
+before any `source`, `citation`, `theme`, or `activity` call (see § 0).
+
 Implemented groups this skill uses:
 
-- `source add|list|update|attach|download`
-- `citation add|list|update|render`
+- `project list|show` (and `project add` only if the researcher asks)
+- `source add|list|update|attach|download|copy|move`
+- `citation add|list|update|render|copy|move`
 - `theme add|list|link|update|synthesize|show`
 
 Also implemented on `v1.x-proto`, but out of this skill's scope (see
 § Boundary with later workflows): `abstract`, `outline`, `paper`.
-`activity list` also exists as a read-only history view; every successful
-`source`, `citation`, and `theme` write this skill makes below records its
-own activity entry automatically and best-effort — this skill never calls
-`activity list`, and there is no `activity add` command to invent.
+`activity list PROJECT_ID` also exists as a read-only history view; every
+successful `source`, `citation`, and `theme` write this skill makes below
+records its own activity entry automatically and best-effort — this skill
+never calls `activity list`, and there is no `activity add` command to invent.
+
+### Project selection
+
+| Command | Args | Notes |
+|---|---|---|
+| `project list` | none | List known projects and their store paths. |
+| `project show` | positional `id` | Confirm one project and its HDF5 path. |
+| `project add` | positional `id`, `-n`/`--name`, `--h5-file` | Create a project. **Only if the researcher asks.** Do not invent a project. There is no `project update`. |
 
 ### `source add`
 
 | Flag | Required | Notes |
 |---|---|---|
+| `project_id` (positional) | yes | The research store to write into |
 | `-m` / `--medium` | yes | `pdf`, `book`, `web`, or `presentation` |
 | `-a` / `--authors` | yes | Space-separated list; at least one. Quote any name that contains spaces. |
 | `-y` / `--year` | yes | Integer publication year |
@@ -75,6 +88,7 @@ readable local file (the same file you read in step 1).
 
 | Flag | Required | Notes |
 |---|---|---|
+| `project_id` (positional) | yes | The research store |
 | `id` (positional) | yes | The source identifier returned by `source add` |
 | `-f` / `--file` | yes | Path to the readable local file supplied by the researcher |
 | `-n` / `--name` | no | Optional API/download name override; omit unless the researcher requests one |
@@ -86,6 +100,7 @@ the attached file back out.
 
 | Flag | Required | Notes |
 |---|---|---|
+| `project_id` (positional) | yes | The research store |
 | `id` (positional) | yes | The source identifier whose document to download |
 | `-o` / `--out` | no | Destination directory; defaults to the current working directory |
 
@@ -93,34 +108,105 @@ the attached file back out.
 
 | Flag | Required | Notes |
 |---|---|---|
-| `-s` / `--source-id` | yes | UUID returned by `source add` |
-| `-l` / `--locator` | yes | Must match `^\d+-\d+$` (e.g. `12-14` or `12-12` for a single page) |
-| `-e` / `--excerpt` | yes | Quoted or paraphrased passage |
+| `project_id` (positional) | yes | The research store |
+| `-s` / `--source-id` | yes for default | UUID returned by `source add` (omit for `--type link`) |
+| `-l` / `--locator` | yes for default | Must match `^\d+-\d+$` (e.g. `12-14` or `12-12` for a single page) |
+| `-e` / `--excerpt` | yes | Quoted or paraphrased passage, or `ORIGIN_PROJECT:ORIGIN_CITATION_ID` for `--type link` |
+| `--type` | no | `default` (local evidence) or `link` (live pointer) |
 | `--context-note` | no | Enough surrounding context to stand alone later |
 | `-n` / `--title` | no | A short, researcher-authored label for *this citation* — not the source's title. Only set it if the researcher supplies or approves one; do not invent one from the excerpt. |
 
 A locator like `12`, `p. 12`, or `12–14` (en-dash) is invalid.
 
+`citation add --type link -e ORIGIN_PROJECT:ORIGIN_CITATION_ID` creates a live
+pointer, not a second excerpt. Do not copy origin source/citation just to make
+a link. Keep link creation accurate if the researcher asks; this skill is not
+a linking tutorial.
+
 ### Related read/update commands
 
-- `source list` — confirm the source landed; capture its `id` if you lost it.
-- `source update <id>` plus any of `-a`, `-y`, `-t`, `--container-title`,
+- `source list PROJECT_ID` — confirm the source landed; capture its `id` if you lost it.
+- `source update PROJECT_ID <id>` plus any of `-a`, `-y`, `-t`, `--container-title`,
   `--publisher`, `--url`, or `--overview-note`; use `--clear-url` or
   `--clear-overview-note` to remove either. Medium cannot be changed this way.
-- `source attach <id> -f PATH [-n NAME]` — attach a supplied local file to
-  its source (see step 4). `source download <id> [-o DIR]` retrieves it later.
-- `citation list [-s/--source-id]` — optional source filter; omit `-s` to list
+- `source attach PROJECT_ID <id> -f PATH [-n NAME]` — attach a supplied local file to
+  its source (see step 4). `source download PROJECT_ID <id> [-o DIR]` retrieves it later.
+- `citation list PROJECT_ID [-s/--source-id]` — optional source filter; omit `-s` to list
   every local row (id, type, title, pointer/excerpt) without opening origin stores.
-- `citation update <id>` plus any of `-l`, `-e`, `--context-note`, `-n`/`--title`,
+- `citation update PROJECT_ID <id>` plus any of `-l`, `-e`, `--context-note`, `-n`/`--title`,
   or `--clear-title` (clears an existing title without touching other fields).
   Do not retarget a `type=link` pointer this way.
-- `citation add --type link -e ORIGIN_PROJECT:ORIGIN_CITATION_ID` creates a live
-  pointer, not a second excerpt. Do not copy origin source/citation to make a link.
+
+### Source and citation copy / move
+
+Shipped cross-project transfer. Do not invent bulk flags, `--with-citations`,
+theme copy/move, or theme delete — those are unshipped.
+
+| Command | Shape | Notes |
+|---|---|---|
+| `source copy` | `source copy PROJECT_ID SOURCE_ID --to DEST` | Copies the source only. Does **not** copy its citations. |
+| `source move` | `source move PROJECT_ID SOURCE_ID --to DEST` | Refused while origin citations remain. |
+| `citation copy` | `citation copy PROJECT_ID CITATION_ID --to DEST` | Auto-copies a missing parent source into `DEST`. |
+| `citation move` | `citation move PROJECT_ID CITATION_ID --to DEST` | Auto-copies a missing parent source; deletes the origin citation row. |
+
+Limits that matter in practice:
+
+- Copy and move do **not** transfer themes or linkages. A copied or moved
+  citation arrives **unlinked** in the destination.
+- Citation move deletes the origin row and does **not** retire origin
+  linkages. Do not recommend moving a citation that still has linkages: the
+  linkage rows stay behind, and `theme show` currently drops a missing
+  citation.
+- Prefer `citation copy` (or an explicit `citation add --type link`) when the
+  origin linkages should remain coherent. Confirm the destination project
+  with the researcher before any transfer.
 
 Theme commands live in `tiferet-lit-review-theme`. After capture, offer
 linking; do not apply a theme without confirmation.
 
+## Manual project-store backup
+
+Take a backup only when the researcher asks. There is no shipped backup CLI;
+do not invent one. Automated backup is a candidate for a later beta and is
+out of scope here.
+
+`.backup/` sits at the repository root and is gitignored (as is
+`.lit_review/`). A backup is a byte copy of one project's HDF5 store — not a
+new project, and not a source/citation copy or move.
+
+1. Resolve the live store path with
+   `python lit_review_cli.py project show PROJECT_ID` (field `h5_file`). For
+   `iching_kb` that path is `.lit_review/iching_kb.h5`.
+2. Name the copy `.backup/{store_stem}.{n}.h5`. The stem is the live filename
+   without `.h5`. `n` is the next integer **for that stem only**. Existing
+   default-store copies are `lit_review.1.h5` through `lit_review.16.h5`; do
+   not continue that series for a different project. `iching_kb` was copied
+   to `.backup/iching_kb.1.h5`; the next `iching_kb` backup is
+   `iching_kb.2.h5`. Never overwrite an existing numbered file.
+3. Copy with `cp -n`, then confirm the byte sizes match. Do not open the
+   HDF5 file to make the backup. If the store is locked, stop and say so.
+
+`.lit_review/backups/` is a separate dated curation series for the default
+`lit_review` store. Do not use it for this numbered convention.
+
 ## Procedure
+
+### 0. Resolve the project store
+
+Every `source`, `citation`, and `theme` command needs a leading `PROJECT_ID`.
+Find it first:
+
+```bash
+python lit_review_cli.py project list
+python lit_review_cli.py project show PROJECT_ID
+```
+
+If the researcher already named a project, use that id. If several projects
+exist, ask which store to write into. Do **not** run `project add` unless the
+researcher explicitly asks to create a project (`id`, `-n`/`--name`,
+`--h5-file`). There is no `project update`.
+
+Hold `PROJECT_ID` for every subsequent command in this session.
 
 ### 1. Read the material
 
@@ -148,14 +234,14 @@ From title page, front matter, running headers, or an explicit citation, collect
 If a required field is missing or ambiguous, ask. Do not guess a year, invent
 an author, or "fix" a title.
 
-Before adding, run `source list` and reuse an existing source when the same
-work is already captured (same authors + year + title). Do not create a
-duplicate.
+Before adding, run `source list PROJECT_ID` and reuse an existing source when
+the same work is already captured (same authors + year + title). Do not create
+a duplicate.
 
 ### 3. Capture the source
 
 ```bash
-python lit_review_cli.py source add \
+python lit_review_cli.py source add PROJECT_ID \
   -m pdf \
   -a "Last, F." \
   -y 2020 \
@@ -174,7 +260,7 @@ If the researcher handed you a readable local file (the same PDF/book file
 you read in step 1), attach it to the source you just captured:
 
 ```bash
-python lit_review_cli.py source attach SOURCE_ID -f "/path/to/file.pdf"
+python lit_review_cli.py source attach PROJECT_ID SOURCE_ID -f "/path/to/file.pdf"
 ```
 
 Only pass `-n`/`--name` if the researcher asks for a specific download name;
@@ -182,9 +268,9 @@ otherwise let it default. Do not attach a file you were not given, and do
 not skip this step silently when a file was supplied — either attach it or
 tell the researcher why you could not (e.g. the path is unreadable).
 
-`source download SOURCE_ID [-o /destination/dir]` retrieves the attached
-file later; it is retrieval, not a new capture step, and this skill does not
-need to call it during ingestion.
+`source download PROJECT_ID SOURCE_ID [-o /destination/dir]` retrieves the
+attached file later; it is retrieval, not a new capture step, and this skill
+does not need to call it during ingestion.
 
 ### 5. Identify candidate citations
 
@@ -208,7 +294,7 @@ For each approved passage, record:
 ### 6. Capture citations
 
 ```bash
-python lit_review_cli.py citation add \
+python lit_review_cli.py citation add PROJECT_ID \
   -s SOURCE_ID \
   -l 142-144 \
   -e "The excerpt exactly as approved." \
@@ -218,7 +304,7 @@ python lit_review_cli.py citation add \
 Save each returned citation `id`. Verify with:
 
 ```bash
-python lit_review_cli.py citation list -s SOURCE_ID
+python lit_review_cli.py citation list PROJECT_ID -s SOURCE_ID
 ```
 
 If `SOURCE_NOT_FOUND` or `INVALID_LOCATOR` is raised, fix the input and retry.
@@ -229,14 +315,14 @@ Do not invent a different locator shape to "make it work."
 Thematic linking is available (`theme add`, `theme link`, `theme update`,
 `theme synthesize`, `theme show`). Follow `tiferet-lit-review-theme`:
 
-1. `theme list` first.
+1. `theme list PROJECT_ID` first.
 2. Suggest existing theme names, or a new theme name, from the excerpts.
-3. Run default `theme link` only after the researcher confirms citation → theme.
+3. Run default `theme link PROJECT_ID` only after the researcher confirms citation → theme.
    Default link is structural and does not rewrite the description.
-4. Offer `theme update -d` for a curated narrative. Do not pass
+4. Offer `theme update PROJECT_ID … -d` for a curated narrative. Do not pass
    `--include-synthesis` or run `theme synthesize` unless they ask to replace
    that text with the naive collage.
-5. `theme show THEME_ID` after a successful link so they can see the result.
+5. `theme show PROJECT_ID THEME_ID` after a successful link so they can see the result.
 
 Never assign themes silently.
 
@@ -262,10 +348,13 @@ that decision is outside this skill's scope.
 Supplied: a journal-article PDF whose title page shows
 *Smith, J. (2020). Situated expertise in design review. Design Studies.*
 The researcher points at page 12: "Expertise is enacted in the review, not
-stored in the reviewer."
+stored in the reviewer." Project id is already known as `design-review`.
 
 ```bash
-python lit_review_cli.py source add \
+python lit_review_cli.py project list
+python lit_review_cli.py project show design-review
+
+python lit_review_cli.py source add design-review \
   -m pdf \
   -a "Smith, J." \
   -y 2020 \
@@ -274,21 +363,21 @@ python lit_review_cli.py source add \
 
 # Suppose the command returns id=2f1c0a8e-1111-2222-3333-444444444444
 
-python lit_review_cli.py citation add \
+python lit_review_cli.py citation add design-review \
   -s 2f1c0a8e-1111-2222-3333-444444444444 \
   -l 12-12 \
   -e "Expertise is enacted in the review, not stored in the reviewer."
 
 # Suppose the citation id is 9aa10000-aaaa-bbbb-cccc-ddddeeeeffff
 
-python lit_review_cli.py theme list
+python lit_review_cli.py theme list design-review
 # Researcher confirms an existing theme id "situated-expertise" (or asks to create it)
 
-python lit_review_cli.py theme link \
+python lit_review_cli.py theme link design-review \
   -c 9aa10000-aaaa-bbbb-cccc-ddddeeeeffff \
   -t situated-expertise
 
-python lit_review_cli.py theme show situated-expertise
+python lit_review_cli.py theme show design-review situated-expertise
 ```
 
 If the year had been missing from the title page, stop after reading and ask
@@ -296,6 +385,9 @@ before any `source add`.
 
 ## Quality checklist
 
+- `PROJECT_ID` was resolved via `project list` / `project show` (or the
+  researcher's explicit id) before any store command.
+- No project was created unless the researcher asked.
 - Bibliographic fields came from the material or the researcher, never invented.
 - Medium is `pdf`, `book`, `web`, or `presentation`.
 - Locator is `digits-digits` for `pdf`/`book`/`presentation` (a page range for
@@ -313,6 +405,8 @@ before any `source add`.
 - Default `theme link` was used unless the researcher asked to synthesize.
 - A supplied local file was attached with `source attach`, or the researcher
   was told why it wasn't.
+- Copy/move used only the shipped shapes; no bulk, `--with-citations`, or
+  theme transfer was invented. A citation with linkages was not moved.
 - No `abstract`, `outline`, `paper`, or `activity` command was invented or
   invoked from this skill.
 - Returned `id`s were captured from CLI output, not guessed.

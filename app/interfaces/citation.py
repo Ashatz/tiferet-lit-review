@@ -49,9 +49,11 @@ class CitationService(Service):
     @abstractmethod
     def list(self, **filters) -> List[CitationAggregate]:
         '''
-        List Citation aggregates, optionally filtered (e.g. by source_id).
+        List Citation aggregates, optionally filtered by source or IDs.
 
-        :param filters: Optional filter criteria.
+        :param filters: Optional source_id and ids criteria, combined by
+            intersection. ids=None selects all IDs; an empty collection
+            selects none.
         :type filters: dict
         :return: The matching citation aggregates, in insertion order.
         :rtype: List[CitationAggregate]

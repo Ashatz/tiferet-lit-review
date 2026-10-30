@@ -2,9 +2,12 @@
 
 # *** imports
 
+# ** core
+from unittest import mock
+
 # ** infra
 import pytest
-from unittest import mock
+from tiferet_h5.utils import H5Client
 
 # ** app
 from tiferet import DomainEvent
@@ -29,6 +32,9 @@ from app.interfaces.theme import ThemeService
 from app.mappers.citation import CitationAggregate
 from app.mappers.linkage import LinkageAggregate
 from app.mappers.theme import ThemeAggregate
+from app.repos.citation import CITATIONS_TABLE_PATH, CitationH5Repository
+from app.repos.linkage import LINKAGES_TABLE_PATH, LinkageH5Repository
+from app.repos.theme import ThemeH5Repository
 
 # *** constants
 
@@ -690,7 +696,7 @@ def test_show_theme_lists_active_linkages_only_by_default(theme, citation, linka
     citation_service = mock.Mock(spec=CitationService)
     theme_service.get.return_value = theme
     linkage_service.list.return_value = [linkage]
-    citation_service.get.return_value = citation
+    citation_service.list.return_value = [citation]
 
     # Show without opting into retired linkages.
     result = DomainEvent.handle(
@@ -727,7 +733,7 @@ def test_show_theme_include_retired_lists_retirement_details(theme, citation, li
     citation_service = mock.Mock(spec=CitationService)
     theme_service.get.return_value = theme
     linkage_service.list.return_value = [linkage]
-    citation_service.get.return_value = citation
+    citation_service.list.return_value = [citation]
 
     # Show with --include-retired.
     result = DomainEvent.handle(
@@ -749,6 +755,249 @@ def test_show_theme_include_retired_lists_retirement_details(theme, citation, li
     assert retired_view.excerpt == citation.excerpt
     assert retired_view.retired_at == linkage.retired_at
     assert retired_view.retirement_reason == 'Superseded by stronger corroboration.'
+
+# ** test: test_show_theme_bulk_load_preserves_order_and_fields
+@pytest.mark.parametrize('citation_count', [7, 8])
+def test_show_theme_bulk_load_preserves_order_and_fields(theme, citation_count):
+    '''
+    Bulk loading preserves the full response in linkage order.
+
+    :param theme: The theme fixture.
+    :type theme: ThemeAggregate
+    :param citation_count: The number of active linked citations.
+    :type citation_count: int
+    '''
+
+    # Provide fully populated citations in reverse table order.
+    citations = [
+        CitationAggregate(
+            id=f'citation-{index}',
+            source_id=f'source-{index}',
+            locator=f'{index + 1}-{index + 1}',
+            excerpt=f'Exact excerpt {index}: évidence.',
+            context_note=f'Exact context {index}.',
+            title=f'Exact title {index}',
+            created_at=1700000000 + index,
+        )
+        for index in range(citation_count)
+    ]
+    linkages = [
+        LinkageAggregate(citation_id=citation.id, theme_id=theme.id)
+        for citation in citations
+    ]
+    theme_service = mock.Mock(spec=ThemeService)
+    linkage_service = mock.Mock(spec=LinkageService)
+    citation_service = mock.Mock(spec=CitationService)
+    theme_service.get.return_value = theme
+    linkage_service.list.return_value = linkages
+    citation_service.list.return_value = list(reversed(citations))
+    original_theme = theme.model_dump()
+
+    # Show without invoking any per-citation lookup.
+    result = DomainEvent.handle(
+        ShowTheme,
+        dependencies={
+            'theme_service': theme_service,
+            'linkage_service': linkage_service,
+            'citation_service': citation_service,
+        },
+        id=theme.id,
+    )
+
+    # Order, all citation fields, and all theme fields survive unchanged.
+    assert [item.model_dump() for item in result.citations] == [
+        citation.model_dump() for citation in citations
+    ]
+    assert result.model_dump(
+        exclude={'citations', 'retired_citations'},
+    ) == original_theme
+    assert result.retired_citations is None
+    assert theme.model_dump() == original_theme
+    linkage_service.list.assert_called_once_with(theme_id=theme.id)
+    citation_service.list.assert_called_once_with(ids=[item.id for item in citations])
+    citation_service.get.assert_not_called()
+    citation_service.save.assert_not_called()
+    linkage_service.save.assert_not_called()
+    theme_service.save.assert_not_called()
+
+# ** test: test_show_theme_empty_skips_citation_service
+def test_show_theme_empty_skips_citation_service(theme):
+    '''
+    A theme with no linkages never opens the citation service.
+
+    :param theme: The theme fixture.
+    :type theme: ThemeAggregate
+    '''
+
+    # Set up an existing theme without evidence.
+    theme_service = mock.Mock(spec=ThemeService)
+    linkage_service = mock.Mock(spec=LinkageService)
+    citation_service = mock.Mock(spec=CitationService)
+    theme_service.get.return_value = theme
+    linkage_service.list.return_value = []
+
+    # Show the empty theme with an explicitly empty retirement view.
+    result = DomainEvent.handle(
+        ShowTheme,
+        dependencies={
+            'theme_service': theme_service,
+            'linkage_service': linkage_service,
+            'citation_service': citation_service,
+        },
+        id=theme.id,
+        include_retired=True,
+    )
+
+    # Neither citation read path is needed.
+    assert result.citations == []
+    assert result.retired_citations == []
+    citation_service.list.assert_not_called()
+    citation_service.get.assert_not_called()
+
+# ** test: test_show_theme_missing_theme_skips_evidence
+def test_show_theme_missing_theme_skips_evidence():
+    '''
+    A missing theme raises before reading linkage or citation tables.
+    '''
+
+    # No theme is registered for the requested identifier.
+    theme_service = mock.Mock(spec=ThemeService)
+    linkage_service = mock.Mock(spec=LinkageService)
+    citation_service = mock.Mock(spec=CitationService)
+    theme_service.get.return_value = None
+
+    # The original structured error remains the public outcome.
+    with pytest.raises(TiferetError) as exc_info:
+        DomainEvent.handle(
+            ShowTheme,
+            dependencies={
+                'theme_service': theme_service,
+                'linkage_service': linkage_service,
+                'citation_service': citation_service,
+            },
+            id='missing-theme',
+        )
+
+    # Missing themes cannot trigger the bulk read.
+    assert exc_info.value.error_code == THEME_NOT_FOUND_ID
+    linkage_service.list.assert_not_called()
+    citation_service.list.assert_not_called()
+    citation_service.get.assert_not_called()
+
+# ** test: test_show_theme_missing_and_repeated_citations
+def test_show_theme_missing_and_repeated_citations(theme, citation):
+    '''
+    Missing rows are skipped and repeated references retain the first row.
+
+    :param theme: The theme fixture.
+    :type theme: ThemeAggregate
+    :param citation: The citation fixture.
+    :type citation: CitationAggregate
+    '''
+
+    # Duplicate stored IDs retain get's first-match behavior.
+    duplicate = citation.model_copy(update={'excerpt': 'Not the first row.'})
+    active = LinkageAggregate(citation_id=citation.id, theme_id=theme.id)
+    retired = LinkageAggregate(citation_id=citation.id, theme_id=theme.id)
+    retired.retire(reason='Retain provenance.')
+    missing = LinkageAggregate(citation_id='missing', theme_id=theme.id)
+    theme_service = mock.Mock(spec=ThemeService)
+    linkage_service = mock.Mock(spec=LinkageService)
+    citation_service = mock.Mock(spec=CitationService)
+    theme_service.get.return_value = theme
+    linkage_service.list.return_value = [active, missing, active, retired]
+    citation_service.list.return_value = [citation, duplicate]
+
+    # Preserve each linkage's position and its retirement state.
+    result = DomainEvent.handle(
+        ShowTheme,
+        dependencies={
+            'theme_service': theme_service,
+            'linkage_service': linkage_service,
+            'citation_service': citation_service,
+        },
+        id=theme.id,
+        include_retired=True,
+    )
+
+    # Active repetition survives, the missing row vanishes, and retirement stays.
+    assert [item.model_dump() for item in result.citations] == [
+        citation.model_dump(),
+        citation.model_dump(),
+    ]
+    assert len(result.retired_citations) == 1
+    retired_view = result.retired_citations[0]
+    assert retired_view.model_dump(
+        exclude={'retired_at', 'retirement_reason'},
+    ) == citation.model_dump()
+    assert retired_view.retired_at == retired.retired_at
+    assert retired_view.retirement_reason == 'Retain provenance.'
+    citation_service.get.assert_not_called()
+    assert citation_service.list.call_count == 1
+
+# ** test_int: test_show_theme_reads_citations_table_once
+@pytest.mark.parametrize('citation_count', [7, 8])
+def test_show_theme_reads_citations_table_once(tmp_path, theme, citation_count):
+    '''
+    A multi-link show performs exactly one real citation-table read.
+
+    :param tmp_path: Pytest temporary directory.
+    :type tmp_path: Path
+    :param theme: The theme fixture.
+    :type theme: ThemeAggregate
+    :param citation_count: The number of linked citations.
+    :type citation_count: int
+    '''
+
+    # Persist full-width compressed citations in an isolated store.
+    h5_file = str(tmp_path / 'theme-show.h5')
+    theme_service = ThemeH5Repository(h5_file=h5_file)
+    linkage_service = LinkageH5Repository(h5_file=h5_file)
+    citation_service = CitationH5Repository(h5_file=h5_file)
+    theme_service.save(theme)
+    expected = []
+    for index in range(citation_count):
+        citation = CitationAggregate(
+            id=f'citation-{index}',
+            source_id='source-1',
+            locator=f'{index + 1}-{index + 1}',
+            excerpt=f'Exact evidence {index}.',
+            context_note=f'Exact context {index}.',
+            title=f'Exact title {index}',
+            created_at=1700000000 + index,
+        )
+        citation_service.save(citation)
+        linkage_service.save(LinkageAggregate(
+            citation_id=citation.id,
+            theme_id=theme.id,
+        ))
+        expected.append(citation.model_dump())
+
+    # Require read-only access and instrument the actual HDF5 boundary.
+    theme_service.mode = 'r'
+    linkage_service.mode = 'r'
+    citation_service.mode = 'r'
+    with mock.patch.object(
+            H5Client,
+            'read_rows',
+            autospec=True,
+            side_effect=H5Client.read_rows,
+        ) as read_rows:
+        result = DomainEvent.handle(
+            ShowTheme,
+            dependencies={
+                'theme_service': theme_service,
+                'linkage_service': linkage_service,
+                'citation_service': citation_service,
+            },
+            id=theme.id,
+        )
+
+    # One linkage read and one citation read serve all seven or eight links.
+    paths = [call.args[1] for call in read_rows.call_args_list]
+    assert paths == [LINKAGES_TABLE_PATH, CITATIONS_TABLE_PATH]
+    assert [citation.model_dump() for citation in result.citations] == expected
+    assert result.synthesized_description == theme.synthesized_description
 
 # ** test: test_resynthesize_theme_reloads_linkages
 def test_resynthesize_theme_reloads_linkages(theme, citation, linkage):

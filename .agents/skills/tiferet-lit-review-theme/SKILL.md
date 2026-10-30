@@ -6,7 +6,7 @@ description: Create themes, link existing citations to them, write or re-synthes
 # Themes in tiferet-lit-review
 
 The theme, not the source, is the unit of intellectual work. This skill
-covers the implemented theme surface on `v1.x-proto` as of `v1.0.0a13`.
+covers the implemented theme surface on `v1.x-proto` as of `v1.0.0b3`.
 Outline assembly and Paper composition are implemented elsewhere in the app
 (see § Boundary with later workflows); this skill organizes already-captured
 evidence into themes and does not assemble an Outline or open/draft a Paper
@@ -24,22 +24,34 @@ or decide theme membership without the researcher.
 
 ## Current CLI surface
 
-Run from the repository root with the project venv active when `.venv` exists:
+Run from the repository root with the project venv active when `.venv` exists.
+Every store command takes a leading positional `project_id`:
 
 ```bash
-python lit_review_cli.py theme <command> [flags]
+python lit_review_cli.py theme <command> PROJECT_ID [flags]
 ```
+
+Resolve the store first if you do not already hold `PROJECT_ID`:
+
+```bash
+python lit_review_cli.py project list
+python lit_review_cli.py project show PROJECT_ID
+```
+
+Do not run `project add` unless the researcher explicitly asks to create a
+project. There is no `project update`, no theme copy/move, and no theme
+delete. `theme retire` remains the unlinking mechanism.
 
 | Command | Flags | What it does |
 |---|---|---|
-| `theme add` | `-n` / `--name` (required) | Create a theme. `id` is a slug of the name, or a UUID if that slug already exists. Synthesis starts empty. |
-| `theme list` | none | List themes (name, id, linkage_count, retired_linkage_count, current description). |
-| `theme link` | `-c` / `--citation-id`, `-t` / `--theme-id`, optional `-s` / `--include-synthesis` | Attach a citation. Default is structural only: new linkage + `linkage_count`, description unchanged. `-s` also re-synthesizes from the **active** linkage set. Re-linking the same pair is idempotent (no second row, no count change), but `-s` on an existing pair still re-synthesizes from the current active set. |
-| `theme update` | positional `id`, optional `-n` / `--name`, `-d` / `--description` | Editorial write. `-d` sets `synthesized_description` to the exact text, including with zero citations. |
-| `theme synthesize` | positional `id` | Reload the theme's active linkages and run the injected synthesizer. |
-| `theme retire` | `-c` / `--citation-id`, `-t` / `--theme-id`, optional `-r` / `--reason` | Retire a linkage: excluded from synthesis and the default show view, but never deleted. Idempotent (re-retiring does not restamp). |
-| `theme reinstate` | `-c` / `--citation-id`, `-t` / `--theme-id` | Return a retired linkage to active. Idempotent on an already-active linkage. |
-| `theme show` | positional `id`, optional `--include-retired` | Print the description plus each **active** linked citation's raw excerpt (not APA). `--include-retired` additionally lists retired linkages with their retirement timestamp and reason. |
+| `theme add` | positional `project_id`, `-n` / `--name` (required) | Create a theme. `id` is a slug of the name, or a UUID if that slug already exists. Synthesis starts empty. |
+| `theme list` | positional `project_id` | List themes (name, id, linkage_count, retired_linkage_count, current description). |
+| `theme link` | positional `project_id`, `-c` / `--citation-id`, `-t` / `--theme-id`, optional `-s` / `--include-synthesis` | Attach a citation. Default is structural only: new linkage + `linkage_count`, description unchanged. `-s` also re-synthesizes from the **active** linkage set. Re-linking the same pair is idempotent (no second row, no count change), but `-s` on an existing pair still re-synthesizes from the current active set. |
+| `theme update` | positional `project_id`, positional `id`, optional `-n` / `--name`, `-d` / `--description` | Editorial write. `-d` sets `synthesized_description` to the exact text, including with zero citations. |
+| `theme synthesize` | positional `project_id`, positional `id` | Reload the theme's active linkages and run the injected synthesizer. |
+| `theme retire` | positional `project_id`, `-c` / `--citation-id`, `-t` / `--theme-id`, optional `-r` / `--reason` | Retire a linkage: excluded from synthesis and the default show view, but never deleted. Idempotent (re-retiring does not restamp). |
+| `theme reinstate` | positional `project_id`, `-c` / `--citation-id`, `-t` / `--theme-id` | Return a retired linkage to active. Idempotent on an already-active linkage. |
+| `theme show` | positional `project_id`, positional `id`, optional `--include-retired` | Print the description plus each **active** linked citation's raw excerpt (not APA). `--include-retired` additionally lists retired linkages with their retirement timestamp and reason. |
 
 Errors you may see:
 
@@ -51,6 +63,14 @@ Errors you may see:
 There is no hard-delete `theme unlink` at v1 — `theme retire` is the
 unlinking mechanism, and it is reversible via `theme reinstate`. Retirement
 is always a researcher-confirmed act; never infer it from context.
+
+Cross-project `source copy|move` and `citation copy|move` are shipped on the
+ingest surface. They do **not** transfer themes or linkages. A copied or moved
+citation arrives unlinked. Citation move deletes the origin row and does not
+retire linkages — linkage rows stay behind, and `theme show` currently drops a
+missing citation. Do not recommend moving a citation that still has linkages;
+prefer retire-in-place, or copy when the origin linkages should remain coherent.
+There is no theme copy or move and no bulk transfer.
 
 ## How synthesis works today
 
@@ -77,26 +97,38 @@ commands.
 
 ## Procedure
 
+### 0. Resolve the project store
+
+Hold a real `PROJECT_ID` before any theme or citation command:
+
+```bash
+python lit_review_cli.py project list
+python lit_review_cli.py project show PROJECT_ID
+```
+
+If the researcher already named the project, use that id. Do not create a
+project unless they ask.
+
 ### 1. Know what you are linking
 
 You need a real `citation_id` (UUID from `citation add` / `citation list`).
 If the citation does not exist yet, stop and use `tiferet-lit-review-ingest`.
 
 ```bash
-python lit_review_cli.py citation list -s SOURCE_ID
+python lit_review_cli.py citation list PROJECT_ID -s SOURCE_ID
 ```
 
 ### 2. Find or create the theme
 
 ```bash
-python lit_review_cli.py theme list
+python lit_review_cli.py theme list PROJECT_ID
 ```
 
 Prefer an existing theme whose name already matches the idea. Only create
 a new theme when the researcher agrees the idea is not already represented:
 
 ```bash
-python lit_review_cli.py theme add -n "Situated expertise"
+python lit_review_cli.py theme add PROJECT_ID -n "Situated expertise"
 ```
 
 Save the returned `id` (often a slug such as `situated-expertise`).
@@ -113,7 +145,7 @@ Propose the mapping in plain language first:
 Only after yes:
 
 ```bash
-python lit_review_cli.py theme link \
+python lit_review_cli.py theme link PROJECT_ID \
   -c CITATION_ID \
   -t THEME_ID
 ```
@@ -125,7 +157,7 @@ rewritten as part of the link.
 Then show the result:
 
 ```bash
-python lit_review_cli.py theme show THEME_ID
+python lit_review_cli.py theme show PROJECT_ID THEME_ID
 ```
 
 If the researcher declines, do not link. Suggest a different existing theme
@@ -136,18 +168,37 @@ or a new name rather than forcing a fit.
 To set exact editorial text (zero citations required):
 
 ```bash
-python lit_review_cli.py theme update THEME_ID \
+python lit_review_cli.py theme update PROJECT_ID THEME_ID \
   -d "The curated narrative the researcher approved."
 ```
 
 To rebuild the naive collage from the current linkage set:
 
 ```bash
-python lit_review_cli.py theme synthesize THEME_ID
+python lit_review_cli.py theme synthesize PROJECT_ID THEME_ID
 ```
 
 Do not run `theme synthesize` or `--include-synthesis` after a curated
 `theme update` unless the researcher asks to replace that text.
+
+### 5. Retire a linkage (when asked)
+
+Unlinking is retirement, not hard delete. Only on explicit confirmation:
+
+```bash
+python lit_review_cli.py theme retire PROJECT_ID \
+  -c CITATION_ID \
+  -t THEME_ID \
+  -r "Optional researcher reason"
+```
+
+Reinstate the same way if they change their mind:
+
+```bash
+python lit_review_cli.py theme reinstate PROJECT_ID \
+  -c CITATION_ID \
+  -t THEME_ID
+```
 
 ## Boundary with later workflows
 
@@ -163,35 +214,37 @@ scope:
 Still not available at v1:
 
 - Hard deletion of a linkage (retirement is reversible state, not erasure)
+- Theme copy, theme move, or theme delete
 - Typed supersession (recording that citation X displaced citation Y)
 - Retirement of an `AbstractTheme` join (a known, deliberately deferred gap)
 
-`citation render` is implemented. Use it when the user asks for APA; it is
-not required to create or link a theme.
+`citation render PROJECT_ID <id> -s apa` is implemented. Use it when the user
+asks for APA; it is not required to create or link a theme.
 
 ## Worked example
 
 Two citations from different sources should land on the same theme (the
 point of this domain). Write the narrative first so batch linking cannot
-clobber it:
+clobber it. Project id is `design-review`:
 
 ```bash
-python lit_review_cli.py theme add -n "Expertise is enacted"
+python lit_review_cli.py project list
+python lit_review_cli.py theme add design-review -n "Expertise is enacted"
 
 # id -> expertise-is-enacted
 
-python lit_review_cli.py theme update expertise-is-enacted \
+python lit_review_cli.py theme update design-review expertise-is-enacted \
   -d "Expertise is enacted in review, not stored in the reviewer."
 
-python lit_review_cli.py theme link \
+python lit_review_cli.py theme link design-review \
   -c 9aa10000-aaaa-bbbb-cccc-ddddeeeeffff \
   -t expertise-is-enacted
 
-python lit_review_cli.py theme link \
+python lit_review_cli.py theme link design-review \
   -c 8bb20000-aaaa-bbbb-cccc-ddddeeeeffff \
   -t expertise-is-enacted
 
-python lit_review_cli.py theme show expertise-is-enacted
+python lit_review_cli.py theme show design-review expertise-is-enacted
 ```
 
 The show output should include both excerpts and the curated description.
@@ -199,6 +252,7 @@ Re-running the first `theme link` must not increase `linkage_count`.
 
 ## Quality checklist
 
+- `PROJECT_ID` was resolved before any store command.
 - `theme list` was consulted before creating a near-duplicate theme.
 - Every `theme link` waited on researcher confirmation.
 - Citation ids came from the store, not invented.
@@ -210,3 +264,5 @@ Re-running the first `theme link` must not increase `linkage_count`.
   inferred from context (e.g. "this source seems outdated").
 - `theme retire` was used instead of inventing a hard-delete unlink, and no
   Outline/Paper composition was performed from this skill.
+- No theme copy/move/delete was invented; a linked citation was not moved
+  across projects while origin linkages remained.

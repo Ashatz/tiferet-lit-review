@@ -780,13 +780,23 @@ class ShowTheme(ThemeEvent):
             id=id,
         )
 
-        # Split linked citations into active and (optionally) retired views.
+        # Resolve local citations in one read, preserving get's first match.
+        linkages = self.linkage_service.list(theme_id=id)
+        citations_by_id = {}
+        if linkages:
+            linked_citations = self.citation_service.list(
+                ids=[linkage.citation_id for linkage in linkages],
+            )
+            for citation in linked_citations:
+                citations_by_id.setdefault(citation.id, citation)
+
+        # Split citations in linkage order, retaining live link overlays.
         citations = []
         retired_citations = [] if include_retired else None
         project_service = kwargs.get('project_service')
         get_project_dependency = kwargs.get('get_project_dependency')
-        for linkage in self.linkage_service.list(theme_id=id):
-            citation = self.citation_service.get(linkage.citation_id)
+        for linkage in linkages:
+            citation = citations_by_id.get(linkage.citation_id)
             if citation is None:
                 continue
             citation = citation_for_read(
