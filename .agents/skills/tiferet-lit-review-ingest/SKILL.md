@@ -120,6 +120,31 @@ A locator like `12`, `p. 12`, or `12–14` (en-dash) is invalid.
 Theme commands live in `tiferet-lit-review-theme`. After capture, offer
 linking; do not apply a theme without confirmation.
 
+## Manual project-store backup
+
+Take a backup only when the researcher asks. There is no shipped backup CLI;
+do not invent one. Automated backup is a candidate for a later beta and is
+out of scope here.
+
+`.backup/` sits at the repository root and is gitignored (as is
+`.lit_review/`). A backup is a byte copy of one project's HDF5 store — not a
+new project, and not a source/citation copy or move.
+
+1. Resolve the live store path with
+   `python lit_review_cli.py project show PROJECT_ID` (field `h5_file`). For
+   `iching_kb` that path is `.lit_review/iching_kb.h5`.
+2. Name the copy `.backup/{store_stem}.{n}.h5`. The stem is the live filename
+   without `.h5`. `n` is the next integer **for that stem only**. Existing
+   default-store copies are `lit_review.1.h5` through `lit_review.16.h5`; do
+   not continue that series for a different project. `iching_kb` was copied
+   to `.backup/iching_kb.1.h5`; the next `iching_kb` backup is
+   `iching_kb.2.h5`. Never overwrite an existing numbered file.
+3. Copy with `cp -n`, then confirm the byte sizes match. Do not open the
+   HDF5 file to make the backup. If the store is locked, stop and say so.
+
+`.lit_review/backups/` is a separate dated curation series for the default
+`lit_review` store. Do not use it for this numbered convention.
+
 ## Procedure
 
 ### 1. Read the material
