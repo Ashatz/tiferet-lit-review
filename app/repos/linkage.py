@@ -139,8 +139,8 @@ class LinkageH5Repository(LinkageService, H5Repository):
                 LinkageTableObject.get_description(),
             )
 
-            # Migrate a table predating the RFP-7 retirement columns so
-            # writes to an older store do not fail against a stale schema.
+            # Migrate a drifted linkages table (retirement columns, or
+            # relevancy_weight) so a write does not fail on a stale schema.
             table = self._migrate_schema(h5, table)
 
             # Compare against the encoded id so StringCol bytes match.
@@ -173,8 +173,9 @@ class LinkageH5Repository(LinkageService, H5Repository):
 
         Existing rows are re-appended through LinkageTableObject, so any
         column absent from the old schema falls back to its Linkage domain
-        default (e.g. retired_at defaults to None, i.e. active) -- every
-        pre-RFP-7 linkage was made as live evidence.
+        default. retired_at defaults to None (active). relevancy_weight
+        defaults to None (unjudged), which encodes as stored 0 and restores
+        to None on read -- never as weight 0.
 
         :param h5: The open H5Client for this operation.
         :type h5: H5Client

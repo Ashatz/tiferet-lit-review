@@ -120,6 +120,12 @@ services:
   reinstate_linkage_event:
     module_path: app.events.theme
     class_name: ReinstateLinkage
+  set_linkage_relevancy_weight_event:
+    module_path: app.events.theme
+    class_name: SetLinkageRelevancyWeight
+  clear_linkage_relevancy_weight_event:
+    module_path: app.events.theme
+    class_name: ClearLinkageRelevancyWeight
   show_theme_event:
     module_path: app.events.theme
     class_name: ShowTheme

@@ -14,13 +14,15 @@ from ..domain.activity import (
     LINKAGE_CREATED_ACTION,
     LINKAGE_REINSTATED_ACTION,
     LINKAGE_RETIRED_ACTION,
+    LINKAGE_WEIGHT_CLEARED_ACTION,
+    LINKAGE_WEIGHT_SET_ACTION,
     THEME_ADDED_ACTION,
     THEME_SUBJECT_TYPE,
     THEME_SYNTHESIZED_ACTION,
     THEME_UPDATED_ACTION,
 )
 from ..domain.citation import Citation
-from ..domain.linkage import Linkage
+from ..domain.linkage import Linkage, is_relevancy_weight
 from ..domain.theme import Theme, slugify_theme_name
 from ..interfaces.activity import ActivityService
 from ..interfaces.citation import CitationService
@@ -30,7 +32,12 @@ from ..interfaces.synthesis import ThemeSynthesisService
 from ..interfaces.theme import ThemeService
 from ..mappers.activity import ActivityAggregate
 from ..mappers.linkage import LinkageAggregate
-from ..mappers.theme import RetiredCitationView, ThemeAggregate, ThemeResponse
+from ..mappers.theme import (
+    LinkedCitationView,
+    RetiredCitationView,
+    ThemeAggregate,
+    ThemeResponse,
+)
 from .activity import record_activity
 from .citation import CITATION_NOT_FOUND_ID, citation_for_read
 
@@ -41,6 +48,9 @@ THEME_NOT_FOUND_ID = 'THEME_NOT_FOUND'
 
 # ** constant: linkage_not_found_id
 LINKAGE_NOT_FOUND_ID = 'LINKAGE_NOT_FOUND'
+
+# ** constant: relevancy_weight_out_of_range_id
+RELEVANCY_WEIGHT_OUT_OF_RANGE_ID = 'RELEVANCY_WEIGHT_OUT_OF_RANGE'
 
 # *** functions
 
@@ -714,14 +724,256 @@ class ReinstateLinkage(DomainEvent):
         # Return the reinstated linkage.
         return linkage
 
+# ** event: set_linkage_relevancy_weight
+class SetLinkageRelevancyWeight(DomainEvent):
+    '''
+    Record a researcher-confirmed relevancy weight on an existing linkage.
+
+    The command does not create a linkage, retire it, or synthesize the
+    theme. A no-op writes nothing and records no activity.
+    '''
+
+    # * attribute: theme_service
+    theme_service: ThemeService
+
+    # * attribute: linkage_service
+    linkage_service: LinkageService
+
+    # * attribute: citation_service
+    citation_service: CitationService
+
+    # * attribute: activity_service
+    activity_service: ActivityService
+
+    # * init
+    def __init__(self,
+            theme_service: ThemeService,
+            linkage_service: LinkageService,
+            citation_service: CitationService,
+            activity_service: ActivityService,
+        ) -> None:
+        '''
+        Initialize the SetLinkageRelevancyWeight event.
+
+        :param theme_service: The theme service dependency.
+        :type theme_service: ThemeService
+        :param linkage_service: The linkage service dependency.
+        :type linkage_service: LinkageService
+        :param citation_service: The citation service dependency.
+        :type citation_service: CitationService
+        :param activity_service: The activity service dependency.
+        :type activity_service: ActivityService
+        '''
+
+        # Set all injected dependencies.
+        self.theme_service = theme_service
+        self.linkage_service = linkage_service
+        self.citation_service = citation_service
+        self.activity_service = activity_service
+
+    # * method: execute
+    @DomainEvent.parameters_required(['citation_id', 'theme_id', 'weight'])
+    def execute(self,
+            citation_id: str,
+            theme_id: str,
+            weight: int,
+            **kwargs,
+        ) -> Linkage:
+        '''
+        Set the relevancy weight on an existing citation-theme linkage.
+
+        :param citation_id: The linked citation identifier.
+        :type citation_id: str
+        :param theme_id: The linked theme identifier.
+        :type theme_id: str
+        :param weight: The judged thematic novelty, an integer from 1 to 100.
+        :type weight: int
+        :param kwargs: Additional keyword arguments.
+        :type kwargs: dict
+        :return: The linkage after the set (unchanged on a no-op).
+        :rtype: Linkage
+        '''
+
+        # Verify the citation exists.
+        citation = self.citation_service.get(citation_id)
+        self.verify(
+            citation is not None,
+            CITATION_NOT_FOUND_ID,
+            message=f'Citation not found: {citation_id}.',
+            id=citation_id,
+        )
+
+        # Verify the theme exists. Setting a weight does not rewrite it.
+        theme = self.theme_service.get(theme_id)
+        self.verify(
+            theme is not None,
+            THEME_NOT_FOUND_ID,
+            message=f'Theme not found: {theme_id}.',
+            id=theme_id,
+        )
+
+        # A missing pair is not created by this command.
+        matches = self.linkage_service.list(theme_id=theme_id, citation_id=citation_id)
+        self.verify(
+            bool(matches),
+            LINKAGE_NOT_FOUND_ID,
+            message=f'Linkage not found between citation {citation_id} and theme {theme_id}.',
+            citation_id=citation_id,
+            theme_id=theme_id,
+        )
+        linkage = matches[0]
+
+        # Reject 0, out of range, non-integers, and bools before mutation.
+        self.verify(
+            is_relevancy_weight(weight),
+            RELEVANCY_WEIGHT_OUT_OF_RANGE_ID,
+            message=f'Relevancy weight {weight!r} must be an integer from 1 to 100.',
+            weight=weight,
+        )
+
+        # Idempotent: an unchanged weight writes nothing and records nothing.
+        changed = linkage.set_relevancy_weight(weight)
+        if not changed:
+            return linkage
+
+        # Persist only the linkage. Do not retire or synthesize.
+        self.linkage_service.save(linkage)
+
+        # Store the field name, never the number.
+        record_activity(self.activity_service, ActivityAggregate(
+            action=LINKAGE_WEIGHT_SET_ACTION,
+            subject_type=THEME_SUBJECT_TYPE,
+            subject_id=theme_id,
+            related_type=CITATION_SUBJECT_TYPE,
+            related_id=citation_id,
+            changed_fields=['relevancy_weight'],
+        ))
+
+        # Return the weighted linkage.
+        return linkage
+
+# ** event: clear_linkage_relevancy_weight
+class ClearLinkageRelevancyWeight(DomainEvent):
+    '''
+    Clear a relevancy weight on an existing linkage, returning it to unjudged.
+
+    The command does not create a linkage, retire it, or synthesize the
+    theme. A no-op writes nothing and records no activity.
+    '''
+
+    # * attribute: theme_service
+    theme_service: ThemeService
+
+    # * attribute: linkage_service
+    linkage_service: LinkageService
+
+    # * attribute: citation_service
+    citation_service: CitationService
+
+    # * attribute: activity_service
+    activity_service: ActivityService
+
+    # * init
+    def __init__(self,
+            theme_service: ThemeService,
+            linkage_service: LinkageService,
+            citation_service: CitationService,
+            activity_service: ActivityService,
+        ) -> None:
+        '''
+        Initialize the ClearLinkageRelevancyWeight event.
+
+        :param theme_service: The theme service dependency.
+        :type theme_service: ThemeService
+        :param linkage_service: The linkage service dependency.
+        :type linkage_service: LinkageService
+        :param citation_service: The citation service dependency.
+        :type citation_service: CitationService
+        :param activity_service: The activity service dependency.
+        :type activity_service: ActivityService
+        '''
+
+        # Set all injected dependencies.
+        self.theme_service = theme_service
+        self.linkage_service = linkage_service
+        self.citation_service = citation_service
+        self.activity_service = activity_service
+
+    # * method: execute
+    @DomainEvent.parameters_required(['citation_id', 'theme_id'])
+    def execute(self, citation_id: str, theme_id: str, **kwargs) -> Linkage:
+        '''
+        Clear the relevancy weight on an existing citation-theme linkage.
+
+        :param citation_id: The linked citation identifier.
+        :type citation_id: str
+        :param theme_id: The linked theme identifier.
+        :type theme_id: str
+        :param kwargs: Additional keyword arguments.
+        :type kwargs: dict
+        :return: The linkage after the clear (unchanged on a no-op).
+        :rtype: Linkage
+        '''
+
+        # Verify the citation exists.
+        citation = self.citation_service.get(citation_id)
+        self.verify(
+            citation is not None,
+            CITATION_NOT_FOUND_ID,
+            message=f'Citation not found: {citation_id}.',
+            id=citation_id,
+        )
+
+        # Verify the theme exists. Clearing a weight does not rewrite it.
+        theme = self.theme_service.get(theme_id)
+        self.verify(
+            theme is not None,
+            THEME_NOT_FOUND_ID,
+            message=f'Theme not found: {theme_id}.',
+            id=theme_id,
+        )
+
+        # A missing pair is not created by this command.
+        matches = self.linkage_service.list(theme_id=theme_id, citation_id=citation_id)
+        self.verify(
+            bool(matches),
+            LINKAGE_NOT_FOUND_ID,
+            message=f'Linkage not found between citation {citation_id} and theme {theme_id}.',
+            citation_id=citation_id,
+            theme_id=theme_id,
+        )
+        linkage = matches[0]
+
+        # Idempotent: an already-absent weight writes nothing and records nothing.
+        changed = linkage.clear_relevancy_weight()
+        if not changed:
+            return linkage
+
+        # Persist only the linkage. Do not retire or synthesize.
+        self.linkage_service.save(linkage)
+
+        # Store the field name, never the number.
+        record_activity(self.activity_service, ActivityAggregate(
+            action=LINKAGE_WEIGHT_CLEARED_ACTION,
+            subject_type=THEME_SUBJECT_TYPE,
+            subject_id=theme_id,
+            related_type=CITATION_SUBJECT_TYPE,
+            related_id=citation_id,
+            changed_fields=['relevancy_weight'],
+        ))
+
+        # Return the unweighted linkage.
+        return linkage
+
 # ** event: show_theme
 class ShowTheme(ThemeEvent):
     '''
     Display a theme's synthesized description plus its active linkages.
 
-    Retired linkages are excluded from the default view; pass
+    Each shown linkage carries its relevancy weight. Absent is null, never
+    0. Retired linkages are excluded from the default view; pass
     include_retired=True to also list them, each marked with its retirement
-    timestamp and reason.
+    timestamp, reason, and weight. Order stays linkage order.
     '''
 
     # * attribute: linkage_service
@@ -806,7 +1058,9 @@ class ShowTheme(ThemeEvent):
                 get_project_dependency,
             )
             if linkage.is_active():
-                citations.append(citation)
+                citations.append(
+                    LinkedCitationView.from_citation_and_linkage(citation, linkage)
+                )
             elif include_retired:
                 retired_citations.append(
                     RetiredCitationView.from_citation_and_linkage(citation, linkage)

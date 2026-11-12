@@ -2,6 +2,9 @@
 
 # *** imports
 
+# ** core
+from pathlib import Path
+
 # ** infra
 import pytest
 import tables
@@ -156,3 +159,106 @@ def test_save_migrates_pre_rfp7_schema(repo, linkage):
         table = h5.get_table(LINKAGES_TABLE_PATH)
         assert 'retired_at' in table.colnames
         assert 'retirement_reason' in table.colnames
+        assert 'relevancy_weight' in table.colnames
+    assert migrated_existing.relevancy_weight is None
+    assert migrated_other.relevancy_weight is None
+
+# ** test_int: test_relevancy_weight_round_trips_absent_and_judged
+def test_relevancy_weight_round_trips_absent_and_judged(repo, linkage):
+    '''
+    Absent weight stores as 0 and restores to None; 42 round-trips.
+
+    :param repo: The temporary linkage repository.
+    :type repo: LinkageH5Repository
+    :param linkage: The linkage fixture.
+    :type linkage: LinkageAggregate
+    '''
+
+    # An unjudged linkage encodes None as the stored sentinel.
+    repo.save(linkage)
+    with repo.client() as h5:
+        stored = h5.read_rows(LINKAGES_TABLE_PATH)[0]
+    assert int(stored['relevancy_weight']) == 0
+
+    # A stored 0 must never surface as weight 0.
+    loaded = repo.get(linkage.id)
+    assert loaded.relevancy_weight is None
+    assert loaded.retired_at is None
+    assert loaded.relevancy_weight is None or 1 <= loaded.relevancy_weight <= 100
+
+    # A judged weight and retirement fields survive together.
+    linkage.set_relevancy_weight(42)
+    linkage.retire(reason='Keep the judgment.')
+    retired_at = linkage.retired_at
+    repo.save(linkage)
+    reloaded = repo.get(linkage.id)
+    assert reloaded.relevancy_weight == 42
+    assert reloaded.retired_at == retired_at
+    assert reloaded.retirement_reason == 'Keep the judgment.'
+    assert 1 <= reloaded.relevancy_weight <= 100
+
+# ** test_int: test_pre_weight_table_reads_without_rewrite_then_migrates
+def test_pre_weight_table_reads_without_rewrite_then_migrates(repo, linkage):
+    '''
+    A current table reads as absent weight until the next linkage write.
+
+    :param repo: The temporary linkage repository.
+    :type repo: LinkageH5Repository
+    :param linkage: The linkage fixture.
+    :type linkage: LinkageAggregate
+    '''
+
+    # Build the pre-weight schema and a sibling group in the same file.
+    class PreWeightLinkageDescription(tables.IsDescription):
+        id = tables.StringCol(64)
+        citation_id = tables.StringCol(64)
+        theme_id = tables.StringCol(64)
+        created_at = tables.Int64Col()
+        retired_at = tables.Int64Col()
+        retirement_reason = tables.StringCol(1000)
+
+    with repo.client() as h5:
+        parent = h5.create_group('/lit_review')
+        table = h5.h5file.create_table(parent, 'linkages', PreWeightLinkageDescription)
+        row = table.row
+        row['id'] = linkage.id.encode('utf-8')
+        row['citation_id'] = CITATION_ID.encode('utf-8')
+        row['theme_id'] = THEME_ID.encode('utf-8')
+        row['created_at'] = linkage.created_at
+        row['retired_at'] = 0
+        row['retirement_reason'] = b''
+        row.append()
+        table.flush()
+        sibling = h5.h5file.create_group('/lit_review', 'sibling')
+        sibling._v_attrs.marker = 'untouched'
+
+    # Get and list must not rewrite a pre-weight table.
+    path = Path(repo.h5_file)
+    before = path.read_bytes()
+    reader = LinkageH5Repository(h5_file=repo.h5_file, mode='r')
+    loaded = reader.get(linkage.id)
+    listed = reader.list(theme_id=THEME_ID)
+    assert loaded.relevancy_weight is None
+    assert listed[0].relevancy_weight is None
+    assert loaded.relevancy_weight is None or 1 <= loaded.relevancy_weight <= 100
+    assert path.read_bytes() == before
+    with reader.client() as h5:
+        assert 'relevancy_weight' not in h5.get_table(LINKAGES_TABLE_PATH).colnames
+
+    # The next save adds the column, keeps the row, and leaves the sibling.
+    other = LinkageAggregate(citation_id='other-citation', theme_id=THEME_ID)
+    other.set_relevancy_weight(11)
+    repo.save(other)
+    kept = repo.get(linkage.id)
+    added = repo.get(other.id)
+    assert kept is not None
+    assert kept.citation_id == CITATION_ID
+    assert kept.relevancy_weight is None
+    assert kept.is_active() is True
+    assert added.relevancy_weight == 11
+    with repo.client() as h5:
+        table = h5.get_table(LINKAGES_TABLE_PATH)
+        assert 'relevancy_weight' in table.colnames
+        assert table.nrows == 2
+        sibling = h5.h5file.get_node('/lit_review/sibling')
+        assert sibling._v_attrs.marker == 'untouched'

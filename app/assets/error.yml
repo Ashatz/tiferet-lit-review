@@ -44,6 +44,11 @@ errors:
     message:
       - lang: en_US
         text: "Linkage not found between citation {citation_id} and theme {theme_id}."
+  RELEVANCY_WEIGHT_OUT_OF_RANGE:
+    name: Relevancy Weight Out Of Range
+    message:
+      - lang: en_US
+        text: "Relevancy weight {weight} must be an integer from 1 to 100."
   ABSTRACT_NOT_FOUND:
     name: Abstract Not Found
     message:

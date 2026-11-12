@@ -48,13 +48,52 @@ class ThemeNodeObject(Theme, NodeObject):
     '''
 
 
-# ** mapper: retired_citation_view
-class RetiredCitationView(Citation, TransferObject):
+# ** mapper: linked_citation_view
+class LinkedCitationView(Citation, TransferObject):
     '''
-    Presentation view of a retired linkage: the resolved citation plus its
-    retirement timestamp and reason. Shown only via
-    ``theme show --include-retired``; a retired linkage still resolves to a
-    real citation, so provenance is never lost.
+    Presentation view of one linkage: the resolved citation plus that
+    mapping's relevancy weight. The weight is not a citation field. Absent
+    is null, never 0.
+    '''
+
+    # * attribute: relevancy_weight
+    relevancy_weight: Optional[int] = Field(
+        default=None,
+        description=(
+            'Researcher-confirmed thematic novelty of this mapping, 1-100, '
+            'or null when unjudged. Never 0.'
+        ),
+    )
+
+    # * method: from_citation_and_linkage (static)
+    @staticmethod
+    def from_citation_and_linkage(citation: Citation, linkage: Linkage) -> 'LinkedCitationView':
+        '''
+        Build a linked-citation view from a resolved citation and its linkage.
+
+        :param citation: The citation the linkage points to.
+        :type citation: Citation
+        :param linkage: The linkage carrying the relevancy weight.
+        :type linkage: Linkage
+        :return: The constructed linked-citation view.
+        :rtype: LinkedCitationView
+        '''
+
+        # Copy the citation and attach this mapping's weight, including null.
+        return LinkedCitationView.from_model(
+            citation,
+            relevancy_weight=linkage.relevancy_weight,
+        )
+
+
+# ** mapper: retired_citation_view
+class RetiredCitationView(LinkedCitationView):
+    '''
+    Presentation view of a retired linkage: the resolved citation, its
+    relevancy weight, and its retirement timestamp and reason. Shown only
+    via ``theme show --include-retired``; a retired linkage still resolves
+    to a real citation, so provenance is never lost. Retirement does not
+    clear the weight.
     '''
 
     # * attribute: retired_at
@@ -77,17 +116,18 @@ class RetiredCitationView(Citation, TransferObject):
 
         :param citation: The citation the retired linkage points to.
         :type citation: Citation
-        :param linkage: The retired linkage carrying the retirement provenance.
+        :param linkage: The retired linkage carrying retirement and weight.
         :type linkage: Linkage
         :return: The constructed retired-citation view.
         :rtype: RetiredCitationView
         '''
 
-        # Delegate to TransferObject.from_model, attaching retirement fields.
+        # Attach retirement provenance and the weight, including null.
         return RetiredCitationView.from_model(
             citation,
             retired_at=linkage.retired_at,
             retirement_reason=linkage.retirement_reason,
+            relevancy_weight=linkage.relevancy_weight,
         )
 
 
@@ -108,9 +148,12 @@ class ThemeResponse(Theme, TransferObject):
     }
 
     # * attribute: citations
-    citations: List[Citation] = Field(
+    citations: List[LinkedCitationView] = Field(
         default_factory=list,
-        description='Active linked citations included on show/display responses.',
+        description=(
+            'Active linked citations included on show/display responses, '
+            'each carrying that mapping\'s relevancy weight.'
+        ),
     )
 
     # * attribute: retired_citations

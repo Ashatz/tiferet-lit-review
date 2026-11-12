@@ -148,6 +148,16 @@ features:
       steps:
         - name: Reinstate Linkage
           service_id: reinstate_linkage_event
+    weight:
+      name: Set Linkage Relevancy Weight
+      steps:
+        - name: Set Linkage Relevancy Weight
+          service_id: set_linkage_relevancy_weight_event
+    clear_weight:
+      name: Clear Linkage Relevancy Weight
+      steps:
+        - name: Clear Linkage Relevancy Weight
+          service_id: clear_linkage_relevancy_weight_event
     show:
       name: Show Theme
       steps:

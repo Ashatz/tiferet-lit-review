@@ -57,6 +57,12 @@ LINKAGE_RETIRED_ACTION = 'linkage.retired'
 # ** constant: linkage_reinstated_action
 LINKAGE_REINSTATED_ACTION = 'linkage.reinstated'
 
+# ** constant: linkage_weight_set_action
+LINKAGE_WEIGHT_SET_ACTION = 'linkage.weight_set'
+
+# ** constant: linkage_weight_cleared_action
+LINKAGE_WEIGHT_CLEARED_ACTION = 'linkage.weight_cleared'
+
 # ** constant: source_copied_action
 SOURCE_COPIED_ACTION = 'source.copied'
 

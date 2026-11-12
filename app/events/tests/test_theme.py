@@ -804,8 +804,8 @@ def test_show_theme_bulk_load_preserves_order_and_fields(theme, citation_count):
         id=theme.id,
     )
 
-    # Order, all citation fields, and all theme fields survive unchanged.
-    assert [item.model_dump() for item in result.citations] == [
+    # Order and citation fields survive. Weight is a linkage field, not citation identity.
+    assert [item.model_dump(exclude={'relevancy_weight'}) for item in result.citations] == [
         citation.model_dump() for citation in citations
     ]
     assert result.model_dump(
@@ -921,14 +921,14 @@ def test_show_theme_missing_and_repeated_citations(theme, citation):
     )
 
     # Active repetition survives, the missing row vanishes, and retirement stays.
-    assert [item.model_dump() for item in result.citations] == [
+    assert [item.model_dump(exclude={'relevancy_weight'}) for item in result.citations] == [
         citation.model_dump(),
         citation.model_dump(),
     ]
     assert len(result.retired_citations) == 1
     retired_view = result.retired_citations[0]
     assert retired_view.model_dump(
-        exclude={'retired_at', 'retirement_reason'},
+        exclude={'retired_at', 'retirement_reason', 'relevancy_weight'},
     ) == citation.model_dump()
     assert retired_view.retired_at == retired.retired_at
     assert retired_view.retirement_reason == 'Retain provenance.'
@@ -996,7 +996,10 @@ def test_show_theme_reads_citations_table_once(tmp_path, theme, citation_count):
     # One linkage read and one citation read serve all seven or eight links.
     paths = [call.args[1] for call in read_rows.call_args_list]
     assert paths == [LINKAGES_TABLE_PATH, CITATIONS_TABLE_PATH]
-    assert [citation.model_dump() for citation in result.citations] == expected
+    assert [
+        citation.model_dump(exclude={'relevancy_weight'})
+        for citation in result.citations
+    ] == expected
     assert result.synthesized_description == theme.synthesized_description
 
 # ** test: test_resynthesize_theme_reloads_linkages
