@@ -155,7 +155,11 @@ citation's wording.
 Forming a linkage is the atomic act of attaching evidence to an idea,
 incrementing the theme's linkage count without destructively overwriting any
 existing narrative description. A citation may hold linkages to more than one
-theme.
+theme. A linkage may also carry an optional **relevancy weight**: a
+researcher-confirmed judgment of thematic novelty for that one mapping, an
+integer from 1 to 100. The weight is not on the Citation and not on the Theme.
+Absent means unjudged, not a low score and not `0`. A new linkage is born
+unweighted.
 
 A linkage is **active** or **retired**. Retiring a linkage says that the
 evidence was once load-bearing for this theme and has since been displaced —
@@ -173,7 +177,8 @@ linked citations; for an abstract, that set is its linked themes. Can be perform
 manually (curated editorial synthesis), invoked on demand, or requested at
 link time via an opt-in flag. Theme synthesis and abstract synthesis are the
 same *kind* of act and **different services** — they do not share one
-implementation or one prompt.
+implementation or one prompt. Theme synthesis does not read relevancy weight.
+Setting a weight does not synthesize.
 
 **Abstract** — a standing brief of one argument, composed from a chosen set of
 themes. It lives in the knowledge base without a Paper. It is not a theme of
@@ -381,13 +386,25 @@ available on request. The knowledge base is organized around an argument that
 evolves, so a theme's evidence set must be able to turn over as better-grounded
 sources arrive — but the turnover itself is part of the record.
 
+The same linkage may carry a **relevancy weight**. `SetLinkageRelevancyWeight`
+and `ClearLinkageRelevancyWeight` write or clear that judgment on an existing
+pair. They do not create a linkage, retire it, or touch the theme description.
+A missing pair is `LINKAGE_NOT_FOUND`. A value outside 1–100, including `0` and
+`True`, is `RELEVANCY_WEIGHT_OUT_OF_RANGE`. An unchanged set or clear writes
+nothing. `theme show` prints the weight beside each active linkage, and beside
+retired linkages when they are requested. Absent prints as null, never `0`.
+Order stays linkage order. `theme list` does not roll the weight up. Retire and
+reinstate keep it. The immediate next step, not yet modeled, is a base-score
+filter that can read this field without a schema change.
+
 This mirrors `RemoveOutlineSlotTheme` (5.8), which already treats a structural
 join as revisable. The difference is that arrangement can simply drop a theme,
 whereas evidence carries provenance and must be retired rather than removed.
 
-**Fully agnostic** with respect to both axes: linking, retiring, and
-reinstating are identical no matter what medium the citation's source came from
-or what style the eventual paper will use.
+**Fully agnostic** with respect to both axes: linking, retiring,
+reinstating, and recording a relevancy weight are identical no matter what
+medium the citation's source came from or what style the eventual paper will
+use.
 
 ### 5.5 Synthesizing and updating a theme
 
@@ -402,7 +419,9 @@ Candidate events: `SynthesizeTheme` (or `ResynthesizeTheme`) and `UpdateTheme`.
 
 Decoupling synthesis from linking ensures batch ingestion is efficient, human
 prose is first-class, and automated synthesis can be re-run on demand whenever
-a new synthesis model or algorithm lands.
+a new synthesis model or algorithm lands. Synthesis does not read relevancy
+weight. Setting or clearing a weight must not call the synthesizer. The naive
+collage stays newest-linkage-first over active linkages only.
 
 **Fully agnostic**: synthesis reads already-captured citations and produces
 text independent of source medium or output citation style.
@@ -533,6 +552,8 @@ order (`app/assets/feature.yml`). The intended composition is:
 - **link-citation** — connect a citation to one or more themes (pure structural linkage).
 - **retire-linkage** — mark a citation's linkage to a theme as displaced, or
   reinstate it; excludes the evidence from synthesis without deleting it.
+- **weight-linkage** — record or clear a relevancy weight on an existing
+  linkage. Does not synthesize, and synthesis does not read the weight.
 - **synthesize-theme** — synthesize or curate a theme's description across its full active linkage set (on demand or manual).
 - **compose-abstract** — name an argument brief and join themes into it
   (structural); write or synthesize the body on demand.
@@ -596,8 +617,12 @@ each is load-bearing for a specific later behavior:
 - **Citation → Theme** (via linkage) is what makes theme synthesis (5.5)
   possible: a theme's description is a function of *all* its active linkages,
   not the newest one, so revising a theme requires reading its full active
-  linkage set. Retirement (5.4) is what lets that set turn over as the argument
+  linkage set. That function does not read relevancy weight. The weight lives
+  on the linkage so one citation can be judged separately for each theme.
+  Retirement (5.4) is what lets that set turn over as the argument
   matures, without breaking the provenance path back to displaced evidence.
+  A later base-score filter can read the weight from the linkage row without a
+  theme rollup. That filter is not modeled yet.
 - **Abstract → Theme** (via AbstractTheme) is what makes abstract synthesis
   (5.6) possible: the brief is a function of the joined themes' current
   descriptions, not of citations directly and not of a blob of ids on the
@@ -633,8 +658,9 @@ Stated plainly, so that implementation work can be scoped against it:
   whole.
 - Attaching, naming, and retrieving a source document (one optional body per
   source).
-- Forming a linkage between a citation and a theme, and retiring or
-  reinstating that linkage.
+- Forming a linkage between a citation and a theme, retiring or
+  reinstating that linkage, and recording or clearing its relevancy weight.
+  Synthesis does not read the weight.
 - Forming a unidirectional AbstractTheme join.
 - The mechanism of theme synthesis and of abstract synthesis (each a
   description given a related set). The *services* stay separate.
@@ -729,6 +755,12 @@ separated from day one:
 - Overloading citation–theme Linkage as this cross-project pointer would collapse
   two different nouns: Linkage attaches evidence to a theme; Citation.type=link
   points at another citation.
+- Putting relevancy weight on Citation or Theme, or calculating it, would
+  collapse a per-mapping judgment into one score. Feeding the weight into
+  synthesis, or synthesizing because a weight was set, would rewrite narrative
+  from a number. Treating absent as `0` or a low score, or retiring, hiding, or
+  filtering because a weight is low, would run a base-score filter before that
+  rule exists.
 
 Naming these now is what the first implementation slice (Section 10) should
 be built to avoid.
@@ -740,7 +772,8 @@ be built to avoid.
 source-wide overview note, attaching and naming a source document, retrieving
 that named body, recording citations with their locators and optional titles,
 forming and refining linkages between citations and themes
-(including retiring a displaced linkage and reinstating it),
+(including retiring a displaced linkage, reinstating it, and recording an
+optional relevancy weight on that mapping),
 composing an abstract from a selection of themes, rendering citations in a
 requested style, assembling an outline of named slots, and opening a Paper
 whose sections hold drafted content, context, and theme membership.
@@ -790,6 +823,12 @@ candidate for its own RFP.
 13. **Source URL and web medium.** **Not yet modeled:** multiple URLs or
     editions per source, and a dedicated `religious_text` medium with
     stronger canonical locator semantics.
+14. **Base-score filter.** **Not yet modeled**, and the immediate next step:
+    a rule that filters out citation links below a chosen relevancy score.
+    The weight already lives on the linkage. Synthesis does not read it.
+    Absent is unjudged, not a low score, so the filter can leave unweighted
+    linkages in place without a schema change. Automatic retirement when one
+    mapping is outweighed is also not modeled.
 
 Together, closing these gaps is the difference between a set of ideas about
 how a literature review knowledge base should work and the knowledge base the

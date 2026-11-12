@@ -337,6 +337,7 @@ separate, researcher-initiated composition workflows, not part of ingestion:
   infer any composition decision from the ingested material.
 - A KB Abstract is never silently created or rewritten during capture.
 - A Paper is never opened during capture.
+- Capture does not create a linkage, so a capture session must not offer or write a weight.
 
 Do not call or invent `abstract add`, `outline assemble`, or `paper open`
 from this skill. If the researcher wants to move captured material into an

@@ -1,12 +1,13 @@
 ---
 name: tiferet-lit-review-theme
-description: Create themes, link existing citations to them, write or re-synthesize a theme description, and show what a theme currently says in the tiferet-lit-review knowledge base. Use this whenever the user wants to group citations by idea, start a theme, attach evidence to a theme, curate the theme narrative, inspect what a theme currently says, or organize captured reading around an argument — even if they do not say "theme." Do not use this to capture a new source; that is tiferet-lit-review-ingest.
+description: Create themes, link existing citations to them, write or re-synthesize a theme description, record a researcher-confirmed relevancy weight on one mapping, and show what a theme currently says in the tiferet-lit-review knowledge base. Use this whenever the user wants to group citations by idea, start a theme, attach evidence to a theme, curate the theme narrative, judge thematic novelty of a linkage, inspect what a theme currently says, or organize captured reading around an argument — even if they do not say "theme." Do not use this to capture a new source; that is tiferet-lit-review-ingest. Do not write a weight until the researcher agrees, and do not synthesize, retire, hide, or filter because a weight was set.
 ---
 
 # Themes in tiferet-lit-review
 
 The theme, not the source, is the unit of intellectual work. This skill
-covers the implemented theme surface on `v1.x-proto` as of `v1.0.0b3`.
+covers the implemented theme surface on `v1.x-proto`, including an optional
+relevancy weight on each citation–theme linkage.
 Outline assembly and Paper composition are implemented elsewhere in the app
 (see § Boundary with later workflows); this skill organizes already-captured
 evidence into themes and does not assemble an Outline or open/draft a Paper
@@ -51,13 +52,16 @@ delete. `theme retire` remains the unlinking mechanism.
 | `theme synthesize` | positional `project_id`, positional `id` | Reload the theme's active linkages and run the injected synthesizer. |
 | `theme retire` | positional `project_id`, `-c` / `--citation-id`, `-t` / `--theme-id`, optional `-r` / `--reason` | Retire a linkage: excluded from synthesis and the default show view, but never deleted. Idempotent (re-retiring does not restamp). |
 | `theme reinstate` | positional `project_id`, `-c` / `--citation-id`, `-t` / `--theme-id` | Return a retired linkage to active. Idempotent on an already-active linkage. |
-| `theme show` | positional `project_id`, positional `id`, optional `--include-retired` | Print the description plus each **active** linked citation's raw excerpt (not APA). `--include-retired` additionally lists retired linkages with their retirement timestamp and reason. |
+| `theme show` | positional `project_id`, positional `id`, optional `--include-retired` | Print the description plus each **active** linked citation's raw excerpt (not APA) and that mapping's relevancy weight. Absent prints as null, never `0`. Order stays linkage order. `--include-retired` additionally lists retired linkages with their retirement timestamp, reason, and weight. |
+| `theme weight` | positional `project_id`, `-c` / `--citation-id`, `-t` / `--theme-id`, `-w` / `--weight` | Set a researcher-confirmed relevancy weight, integer 1–100, on an existing linkage. Does not create a linkage, retire it, or synthesize. |
+| `theme clear-weight` | positional `project_id`, `-c` / `--citation-id`, `-t` / `--theme-id` | Clear the weight, returning the mapping to unjudged. Does not create a linkage. |
 
 Errors you may see:
 
 - `THEME_NOT_FOUND` — bad theme id
 - `CITATION_NOT_FOUND` — bad citation id
-- `LINKAGE_NOT_FOUND` — no linkage exists between the named citation and theme (`theme retire` / `theme reinstate`)
+- `LINKAGE_NOT_FOUND` — no linkage exists between the named citation and theme (`theme retire`, `theme reinstate`, `theme weight`, `theme clear-weight`)
+- `RELEVANCY_WEIGHT_OUT_OF_RANGE` — weight is not an integer from 1 to 100
 - `CITATION_LINK_ORIGIN_NOT_FOUND` — a linked `type=link` citation's origin project or default citation is missing at resolve time
 
 There is no hard-delete `theme unlink` at v1 — `theme retire` is the
@@ -200,6 +204,37 @@ python lit_review_cli.py theme reinstate PROJECT_ID \
   -t THEME_ID
 ```
 
+### 6. Recommend a relevancy weight only after agreement
+
+The weight is a researcher-confirmed judgment of thematic novelty on one
+mapping, integer 1–100, not an automatic score. It lives on that linkage, not
+on the citation and not on the theme. Absent is valid and is not a low score.
+
+The operating agent may recommend a weight and must explain the method. It
+must not write the weight until the researcher agrees. Do not synthesize
+because a weight was set. Do not retire, hide, or filter a linkage because its
+weight is low. There is no base-score filter yet.
+
+Only after yes:
+
+```bash
+python lit_review_cli.py theme weight PROJECT_ID \
+  -c CITATION_ID \
+  -t THEME_ID \
+  -w 70
+```
+
+To return the mapping to unjudged, again only after agreement:
+
+```bash
+python lit_review_cli.py theme clear-weight PROJECT_ID \
+  -c CITATION_ID \
+  -t THEME_ID
+```
+
+`theme link` has no weight flag. A new linkage is born unweighted. A missing
+pair is `LINKAGE_NOT_FOUND`; do not create one to hold a weight.
+
 ## Boundary with later workflows
 
 `outline` and `paper` are implemented CLI groups, but out of this skill's
@@ -217,6 +252,8 @@ Still not available at v1:
 - Theme copy, theme move, or theme delete
 - Typed supersession (recording that citation X displaced citation Y)
 - Retirement of an `AbstractTheme` join (a known, deliberately deferred gap)
+- A base-score filter, hide-below flag, or automatic retirement because a
+  weight is low. The weight is stored so that filter can be added later.
 
 `citation render PROJECT_ID <id> -s apa` is implemented. Use it when the user
 asks for APA; it is not required to create or link a theme.
@@ -266,3 +303,7 @@ Re-running the first `theme link` must not increase `linkage_count`.
   Outline/Paper composition was performed from this skill.
 - No theme copy/move/delete was invented; a linked citation was not moved
   across projects while origin linkages remained.
+- A relevancy weight, if written, was a researcher-confirmed 1–100 judgment
+  of thematic novelty on one mapping, with the method explained first. Absent
+  was left absent. No synthesis, retirement, hiding, or filtering followed
+  from the weight.
