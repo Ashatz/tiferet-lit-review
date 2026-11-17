@@ -310,19 +310,30 @@ python lit_review_cli.py citation list PROJECT_ID -s SOURCE_ID
 If `SOURCE_NOT_FOUND` or `INVALID_LOCATOR` is raised, fix the input and retry.
 Do not invent a different locator shape to "make it work."
 
-### 7. Offer thematic linking
+### 7. Assess relevancy, then offer linking
 
-Thematic linking is available (`theme add`, `theme link`, `theme update`,
-`theme synthesize`, `theme show`). Follow `tiferet-lit-review-theme`:
+Every newly captured citation is reviewed against the themes already in the
+store before any link is proposed. Follow `tiferet-lit-review-theme` for the
+write commands. This step recommends. It does not assign.
 
-1. `theme list PROJECT_ID` first.
-2. Suggest existing theme names, or a new theme name, from the excerpts.
-3. Run default `theme link PROJECT_ID` only after the researcher confirms citation → theme.
-   Default link is structural and does not rewrite the description.
-4. Offer `theme update PROJECT_ID … -d` for a curated narrative. Do not pass
-   `--include-synthesis` or run `theme synthesize` unless they ask to replace
-   that text with the naive collage.
-5. `theme show PROJECT_ID THEME_ID` after a successful link so they can see the result.
+1. `theme list PROJECT_ID` first. Read the citation excerpt and context note,
+   not the title alone.
+2. Compare that passage with existing theme descriptions. Recommend an
+   existing theme only when the passage would add something to that theme's
+   claim. Say so in one or two sentences, and recommend a 1–100 thematic-novelty
+   weight for that proposed mapping. 100 means the theme would be thinner
+   without this passage. 50 means it mostly restates a claim the theme already
+   holds. 1–20 means it does not belong there.
+3. If the best existing theme is still a weak fit, do not force a link. Name
+   a possible new theme that would hold the passage more closely, and wait.
+   Create it only after the researcher agrees.
+4. Run default `theme link` only after the researcher confirms citation → theme.
+   A new linkage is born unweighted. Default link does not rewrite the description.
+5. After a confirmed link, write the agreed weight with `theme weight`.
+   Do not write a weight before the linkage exists, and do not write one the
+   researcher has not agreed to. Do not synthesize, retire, hide, or filter
+   because a weight was set.
+6. `theme show PROJECT_ID THEME_ID` after a successful link so they can see the result.
 
 Never assign themes silently.
 
@@ -337,7 +348,9 @@ separate, researcher-initiated composition workflows, not part of ingestion:
   infer any composition decision from the ingested material.
 - A KB Abstract is never silently created or rewritten during capture.
 - A Paper is never opened during capture.
-- Capture does not create a linkage, so a capture session must not offer or write a weight.
+- A capture session may recommend a theme and a novelty weight. It must not
+  write that weight until the linkage exists and the researcher agrees.
+  Capture still does not create a linkage by itself.
 
 Do not call or invent `abstract add`, `outline assemble`, or `paper open`
 from this skill. If the researcher wants to move captured material into an
@@ -402,7 +415,12 @@ before any `source add`.
 - A citation title, if set, was supplied or approved by the researcher — never
   invented, and never a copy of the source's title.
 - Existing sources were reused when the same work was already in the store.
+- Each new citation was compared with existing themes before a link was offered.
+- A weak fit was not forced onto an existing theme. A possible new theme was
+  named and left uncreated until the researcher agreed.
 - No theme link ran without confirmation.
+- A recommended weight was explained and was not written until the linkage
+  existed and the researcher agreed.
 - Default `theme link` was used unless the researcher asked to synthesize.
 - A supplied local file was attached with `source attach`, or the researcher
   was told why it wasn't.

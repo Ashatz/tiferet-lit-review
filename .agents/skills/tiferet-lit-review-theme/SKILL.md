@@ -122,13 +122,30 @@ If the citation does not exist yet, stop and use `tiferet-lit-review-ingest`.
 python lit_review_cli.py citation list PROJECT_ID -s SOURCE_ID
 ```
 
-### 2. Find or create the theme
+### 2. Assess the citation, then find or create the theme
+
+Whenever a citation is newly captured or brought up for review, assess it
+against the themes already in the store before proposing a link.
 
 ```bash
 python lit_review_cli.py theme list PROJECT_ID
 ```
 
-Prefer an existing theme whose name already matches the idea. Only create
+Read the excerpt and context note, not the title alone. Compare them with
+existing theme descriptions.
+
+- Recommend an existing theme when the passage would add to that theme's
+  claim. With the recommendation, give a 1–100 thematic-novelty weight for
+  that proposed mapping and one or two sentences of method. 100 means the
+  theme would be thinner without the passage. 50 means it mostly restates a
+  claim the theme already holds. 1–20 means it does not belong there.
+- The same citation may fit more than one theme, at different weights.
+  Confirm each mapping separately.
+- If the best existing theme is still a weak fit, do not force the link.
+  Name a possible new theme that would hold the passage more closely.
+  Create it only after the researcher agrees the idea is not already represented.
+
+Prefer an existing theme whose claim the passage actually develops. Only create
 a new theme when the researcher agrees the idea is not already represented:
 
 ```bash
@@ -290,8 +307,14 @@ Re-running the first `theme link` must not increase `linkage_count`.
 ## Quality checklist
 
 - `PROJECT_ID` was resolved before any store command.
+- A citation brought up for review was compared with existing theme
+  descriptions before a link or a new theme was proposed.
+- A weak fit was not forced onto an existing theme. A possible new theme was
+  named and left uncreated until the researcher agreed.
 - `theme list` was consulted before creating a near-duplicate theme.
 - Every `theme link` waited on researcher confirmation.
+- A recommended weight named the mapping, the integer, and why. It was not
+  written before the linkage existed.
 - Citation ids came from the store, not invented.
 - One citation may be offered to multiple themes; each offer was confirmed.
 - Default `theme link` was used unless the researcher asked to synthesize.
