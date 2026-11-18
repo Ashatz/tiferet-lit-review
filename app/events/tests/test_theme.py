@@ -32,7 +32,7 @@ from app.interfaces.theme import ThemeService
 from app.mappers.citation import CitationAggregate
 from app.mappers.linkage import LinkageAggregate
 from app.mappers.theme import ThemeAggregate
-from app.repos.citation import CITATIONS_TABLE_PATH, CitationH5Repository
+from app.repos.citation import CITATIONS_NODE_PATH, CitationH5Repository
 from app.repos.linkage import LINKAGES_TABLE_PATH, LinkageH5Repository
 from app.repos.theme import ThemeH5Repository
 
@@ -130,6 +130,7 @@ def link_dependencies(theme, citation, linkage) -> dict:
     # Resolve the sample theme and citation; default list is empty (new pair).
     theme_service.get.return_value = theme
     citation_service.get.return_value = citation
+    citation_service.list.return_value = [citation]
     linkage_service.list.return_value = []
     theme_synthesis_service.synthesize.return_value = SYNTHESIZED_DESCRIPTION
 
@@ -935,11 +936,11 @@ def test_show_theme_missing_and_repeated_citations(theme, citation):
     citation_service.get.assert_not_called()
     assert citation_service.list.call_count == 1
 
-# ** test_int: test_show_theme_reads_citations_table_once
+# ** test_int: test_show_theme_reads_selected_citation_arrays_only
 @pytest.mark.parametrize('citation_count', [7, 8])
-def test_show_theme_reads_citations_table_once(tmp_path, theme, citation_count):
+def test_show_theme_reads_selected_citation_arrays_only(tmp_path, theme, citation_count):
     '''
-    A multi-link show performs exactly one real citation-table read.
+    A multi-link show does not scan a citations table or an unlinked array.
 
     :param tmp_path: Pytest temporary directory.
     :type tmp_path: Path
@@ -949,7 +950,7 @@ def test_show_theme_reads_citations_table_once(tmp_path, theme, citation_count):
     :type citation_count: int
     '''
 
-    # Persist full-width compressed citations in an isolated store.
+    # Persist linked citations plus one unlinked citation in an isolated store.
     h5_file = str(tmp_path / 'theme-show.h5')
     theme_service = ThemeH5Repository(h5_file=h5_file)
     linkage_service = LinkageH5Repository(h5_file=h5_file)
@@ -972,6 +973,13 @@ def test_show_theme_reads_citations_table_once(tmp_path, theme, citation_count):
             theme_id=theme.id,
         ))
         expected.append(citation.model_dump())
+    citation_service.save(CitationAggregate(
+        id='unlinked-citation',
+        source_id='source-1',
+        locator='99-99',
+        excerpt='Do not read this excerpt.',
+        context_note='Do not read this note.',
+    ))
 
     # Require read-only access and instrument the actual HDF5 boundary.
     theme_service.mode = 'r'
@@ -982,7 +990,12 @@ def test_show_theme_reads_citations_table_once(tmp_path, theme, citation_count):
             'read_rows',
             autospec=True,
             side_effect=H5Client.read_rows,
-        ) as read_rows:
+        ) as read_rows, mock.patch.object(
+            H5Client,
+            'get_array',
+            autospec=True,
+            side_effect=H5Client.get_array,
+        ) as get_array:
         result = DomainEvent.handle(
             ShowTheme,
             dependencies={
@@ -993,9 +1006,13 @@ def test_show_theme_reads_citations_table_once(tmp_path, theme, citation_count):
             id=theme.id,
         )
 
-    # One linkage read and one citation read serve all seven or eight links.
+    # Linkages are still one table read. Citation text is selected arrays only.
     paths = [call.args[1] for call in read_rows.call_args_list]
-    assert paths == [LINKAGES_TABLE_PATH, CITATIONS_TABLE_PATH]
+    array_paths = [call.args[1] for call in get_array.call_args_list]
+    assert paths == [LINKAGES_TABLE_PATH]
+    assert CITATIONS_NODE_PATH not in paths
+    assert array_paths
+    assert all('unlinked-citation' not in path for path in array_paths)
     assert [
         citation.model_dump(exclude={'relevancy_weight'})
         for citation in result.citations
@@ -1024,7 +1041,7 @@ def test_resynthesize_theme_reloads_linkages(theme, citation, linkage):
     # The theme already has a curated description and one stored linkage.
     theme_service.get.return_value = theme
     linkage_service.list.return_value = [linkage]
-    citation_service.get.return_value = citation
+    citation_service.list.return_value = [citation]
     theme_synthesis_service.synthesize.return_value = SYNTHESIZED_DESCRIPTION
 
     # Re-synthesize on demand.
@@ -1040,8 +1057,10 @@ def test_resynthesize_theme_reloads_linkages(theme, citation, linkage):
         id=THEME_ID,
     )
 
-    # Linkages are reloaded, the synthesizer runs, and the description updates.
+    # Linkages are reloaded once. Synthesis does not get each citation.
     linkage_service.list.assert_called_once_with(theme_id=THEME_ID)
+    citation_service.list.assert_called_once_with(ids=[citation.id])
+    citation_service.get.assert_not_called()
     theme_synthesis_service.synthesize.assert_called_once_with(theme, [citation])
     theme_service.save.assert_called_once_with(theme)
     assert result.synthesized_description == SYNTHESIZED_DESCRIPTION

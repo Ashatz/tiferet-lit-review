@@ -68,8 +68,10 @@ def load_active_citations(
 
     Shared by LinkCitationToTheme's opt-in synthesis path and
     ResynthesizeTheme so both feed the synthesizer the identical set; a
-    retired linkage's excerpt never reaches either path (RFP-7). Link
-    citations contribute the origin excerpt and the local context_note.
+    retired linkage's excerpt never reaches either path (RFP-7). Active
+    citations are loaded with one ``list(ids=...)`` call, not one ``get``
+    per linkage. Link citations contribute the origin excerpt and the local
+    context_note.
 
     :param linkage_service: The linkage service dependency.
     :type linkage_service: LinkageService
@@ -87,16 +89,24 @@ def load_active_citations(
     :rtype: List[Citation]
     '''
 
-    # Load every linkage for the theme, newest first.
+    # Load every linkage for the theme, then keep active ids newest first.
     linkages = linkage_service.list(theme_id=theme_id)
+    active_ids = [
+        linkage.citation_id
+        for linkage in reversed(linkages)
+        if linkage.is_active()
+    ]
+    if not active_ids:
+        return []
+
+    # One selected read. Do not call get once per linkage.
+    found = {
+        citation.id: citation
+        for citation in citation_service.list(ids=active_ids)
+    }
     citations = []
-    for linkage in reversed(linkages):
-
-        # Skip retired linkages; only active evidence feeds synthesis.
-        if not linkage.is_active():
-            continue
-
-        citation = citation_service.get(linkage.citation_id)
+    for citation_id in active_ids:
+        citation = found.get(citation_id)
         if citation is None:
             continue
         if event is not None:
@@ -108,7 +118,7 @@ def load_active_citations(
             )
         citations.append(citation)
 
-    # Return the active-only citation set.
+    # Return the active-only citation set, newest-linkage-first.
     return citations
 
 # *** events

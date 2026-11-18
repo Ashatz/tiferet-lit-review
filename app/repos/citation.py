@@ -6,53 +6,197 @@
 from typing import Any, Dict, List, Optional
 
 # ** infra
+import numpy as np
 import tables
 from tiferet_h5 import H5Repository
 
 # ** app
 from ..interfaces.citation import CitationService
-from ..mappers.citation import CitationAggregate, CitationTableObject
+from ..mappers.citation import (
+    CitationAggregate,
+    CitationNodeObject,
+    CitationTableObject,
+)
 
 # *** constants
 
-# ** constant: citations_group_path
-CITATIONS_GROUP_PATH = '/lit_review'
+# ** constant: citations_root_path
+CITATIONS_ROOT_PATH = '/lit_review'
+
+# ** constant: citations_node_leaf
+CITATIONS_NODE_LEAF = 'citations'
+
+# ** constant: citations_node_path
+CITATIONS_NODE_PATH = f'{CITATIONS_ROOT_PATH}/{CITATIONS_NODE_LEAF}'
 
 # ** constant: citations_table_leaf
-CITATIONS_TABLE_LEAF = 'citations'
+# Same path as the group. The name remains for callers that still say "table".
+CITATIONS_TABLE_LEAF = CITATIONS_NODE_LEAF
 
 # ** constant: citations_table_path
-CITATIONS_TABLE_PATH = f'{CITATIONS_GROUP_PATH}/{CITATIONS_TABLE_LEAF}'
+CITATIONS_TABLE_PATH = CITATIONS_NODE_PATH
 
 # ** constant: citations_staging_leaf
-CITATIONS_STAGING_LEAF = 'citations_upgrade_staging'
+CITATIONS_STAGING_LEAF = 'citations_node_staging'
 
 # ** constant: citations_staging_path
-CITATIONS_STAGING_PATH = f'{CITATIONS_GROUP_PATH}/{CITATIONS_STAGING_LEAF}'
+CITATIONS_STAGING_PATH = f'{CITATIONS_ROOT_PATH}/{CITATIONS_STAGING_LEAF}'
 
-# ** constant: citations_backup_leaf
-CITATIONS_BACKUP_LEAF = 'citations_upgrade_backup'
+# ** constant: citations_table_backup_leaf
+CITATIONS_TABLE_BACKUP_LEAF = 'citations_table_retired'
 
-# ** constant: citations_backup_path
-CITATIONS_BACKUP_PATH = f'{CITATIONS_GROUP_PATH}/{CITATIONS_BACKUP_LEAF}'
+# ** constant: citations_table_backup_path
+CITATIONS_TABLE_BACKUP_PATH = f'{CITATIONS_ROOT_PATH}/{CITATIONS_TABLE_BACKUP_LEAF}'
+
+# ** constant: excerpt_array_name
+EXCERPT_ARRAY_NAME = 'excerpt'
+
+# ** constant: context_note_array_name
+CONTEXT_NOTE_ARRAY_NAME = 'context_note'
+
+# ** constant: citation_order_attr
+CITATION_ORDER_ATTR = 'citation_order'
+
+# ** constant: citation_text_filters
+CITATION_TEXT_FILTERS = tables.Filters(complib='zlib', complevel=5)
 
 # ** constant: citations_table_filters
-CITATIONS_TABLE_FILTERS = tables.Filters(complib='zlib', complevel=5)
+# Kept for callers that named the old table filter. Text arrays use the same filter.
+CITATIONS_TABLE_FILTERS = CITATION_TEXT_FILTERS
+
+# *** functions
+
+# ** function: stripped_text
+def stripped_text(value: Any) -> str:
+    '''
+    Decode a stored cell and drop StringCol NUL padding.
+
+    :param value: A table cell or attribute value.
+    :type value: Any
+    :return: UTF-8 text without trailing NUL bytes.
+    :rtype: str
+    '''
+
+    # Absent cells contribute no characters.
+    if value is None:
+        return ''
+
+    # Decode fixed-width bytes, then drop padding that is not content.
+    if isinstance(value, bytes):
+        value = value.decode('utf-8')
+    if isinstance(value, str):
+        return value.rstrip('\x00')
+    return str(value)
+
+
+# ** function: text_to_array
+def text_to_array(text: str) -> np.ndarray:
+    '''
+    Encode citation text as a uint8 array sized to those bytes.
+
+    :param text: The text to store.
+    :type text: str
+    :return: A uint8 array of the UTF-8 bytes.
+    :rtype: np.ndarray
+    '''
+
+    # The array length is the stored byte length, not the validation ceiling.
+    return np.frombuffer(text.encode('utf-8'), dtype=np.uint8)
+
+
+# ** function: array_to_text
+def array_to_text(data: Any) -> str:
+    '''
+    Decode a uint8 citation array back to text.
+
+    :param data: Array contents from ``array.read()``.
+    :type data: Any
+    :return: The stored text.
+    :rtype: str
+    '''
+
+    # Empty and non-empty arrays both decode without padding.
+    return np.asarray(data, dtype=np.uint8).tobytes().decode('utf-8')
+
+
+# ** function: normalize_order
+def normalize_order(raw: Any) -> List[str]:
+    '''
+    Normalize a stored citation-order attribute to a list of ids.
+
+    :param raw: The attribute value, or None when it is absent.
+    :type raw: Any
+    :return: Citation ids in stored order.
+    :rtype: List[str]
+    '''
+
+    # A missing attribute is an empty order, not an error.
+    if raw is None:
+        return []
+    if isinstance(raw, (str, bytes)):
+        raw = [raw]
+
+    # Decode each id. HDF5 may return bytes or a numpy scalar.
+    order = []
+    for item in list(raw):
+        if isinstance(item, bytes):
+            item = item.decode('utf-8')
+        elif hasattr(item, 'item') and not isinstance(item, str):
+            item = item.item()
+            if isinstance(item, bytes):
+                item = item.decode('utf-8')
+        order.append(str(item))
+    return order
+
+
+# ** function: aggregate_from_table_row
+def aggregate_from_table_row(row: Dict[str, Any]) -> CitationAggregate:
+    '''
+    Build a citation aggregate from one pre-migration table row.
+
+    Blank title is omitted so it stays absent. A present empty context note
+    stays an empty string. A missing type becomes the domain default.
+
+    :param row: One row dict from ``H5Client.read_rows``.
+    :type row: Dict[str, Any]
+    :return: The citation those cells describe.
+    :rtype: CitationAggregate
+    '''
+
+    # Small fields are stripped of StringCol padding before validation.
+    data = {
+        'id': stripped_text(row.get('id')),
+        'source_id': stripped_text(row.get('source_id')),
+        'locator': stripped_text(row.get('locator')),
+        'excerpt': stripped_text(row.get('excerpt')),
+        'created_at': int(row.get('created_at') or 0),
+    }
+    if 'context_note' in row:
+        data['context_note'] = stripped_text(row.get('context_note'))
+    title = stripped_text(row.get('title')) if 'title' in row else ''
+    if title:
+        data['title'] = title
+    citation_type = stripped_text(row.get('type')) if 'type' in row else ''
+    if citation_type:
+        data['type'] = citation_type
+
+    # Domain validation supplies default type and rejects an unknown one.
+    return CitationAggregate.model_validate(data)
+
 
 # *** repos
 
 # ** repo: citation_h5_repository
 class CitationH5Repository(CitationService, H5Repository):
     '''
-    HDF5 table-based repository for Citation domain objects. One PyTables row
-    per citation, in a single table at CITATIONS_TABLE_PATH.
+    HDF5 repository for Citation domain objects.
 
-    Filtering is done in-memory over read_rows results. Bulk ID selection
-    shares one table read across callers' linked citations rather than
-    repeating a full scan for each identifier.
-
-    ``save`` is an id-based upsert: an existing row with the same id is
-    overwritten in place; otherwise a new row is appended.
+    A fresh store keeps one group per citation at
+    ``/lit_review/citations/<citation_id>``. Small fields are attributes.
+    Excerpt and context note are compressed arrays sized to the stored text.
+    An unmigrated ``/lit_review/citations`` table is still readable and
+    writable in place. ``save`` does not convert that table. Call
+    ``migrate_table_to_groups`` on purpose.
     '''
 
     # * init
@@ -80,13 +224,23 @@ class CitationH5Repository(CitationService, H5Repository):
         :rtype: bool
         '''
 
-        # Delegate to get and check for None.
-        return self.get(id) is not None
+        # A group presence check does not read text arrays.
+        with self.client() as h5:
+            kind = self._citations_kind(h5)
+            if kind == 'group':
+                return h5.node_exists(self._citation_path(id))
+            if kind == 'table':
+                return self._get_from_table(h5, id) is not None
+            return False
 
     # * method: get
     def get(self, id: str) -> Optional[CitationAggregate]:
         '''
         Retrieve a Citation by its ID.
+
+        A group store is a path lookup plus that citation's arrays. Other
+        citations stay closed. An unmigrated table is still read in full;
+        that path goes away when ``migrate_table_to_groups`` has run.
 
         :param id: The citation identifier.
         :type id: str
@@ -94,19 +248,14 @@ class CitationH5Repository(CitationService, H5Repository):
         :rtype: Optional[CitationAggregate]
         '''
 
-        # Read all rows and find the matching one in-memory.
+        # Dispatch on the citations node. Do not migrate here.
         with self.client() as h5:
-            if not h5.node_exists(CITATIONS_TABLE_PATH):
+            kind = self._citations_kind(h5)
+            if kind == 'absent':
                 return None
-            rows = h5.read_rows(CITATIONS_TABLE_PATH)
-
-        # Find the matching row by id.
-        match = next((row for row in rows if row.get('id') == id), None)
-        if match is None:
-            return None
-
-        # Map the matching row to a citation aggregate.
-        return CitationTableObject.from_row(match).map(CitationAggregate)
+            if kind == 'table':
+                return self._get_from_table(h5, id)
+            return self._read_group(h5, self._citation_path(id))
 
     # * method: list
     def list(self, **filters) -> List[CitationAggregate]:
@@ -121,34 +270,26 @@ class CitationH5Repository(CitationService, H5Repository):
         :rtype: List[CitationAggregate]
         '''
 
-        # Normalize an explicit ID selection before opening the store.
+        # An empty selection has no reason to open the file.
         ids = filters.get('ids')
         selected_ids = set(ids) if ids is not None else None
         if selected_ids is not None and not selected_ids:
             return []
 
-        # Read all rows once, guarding against a missing table.
-        with self.client() as h5:
-            if not h5.node_exists(CITATIONS_TABLE_PATH):
-                return []
-            rows = h5.read_rows(CITATIONS_TABLE_PATH)
-
-        # Select requested IDs before mapping unrelated citation payloads.
-        if selected_ids is not None:
-            rows = [row for row in rows if row.get('id') in selected_ids]
-
-        # Intersect the optional source_id filter with the ID selection.
+        # Group list reads an array only for a citation that remains selected.
         source_id = filters.get('source_id')
-        if source_id is not None:
-            rows = [row for row in rows if row.get('source_id') == source_id]
-
-        # Map each row to a citation aggregate, preserving insertion order.
-        return [CitationTableObject.from_row(row).map(CitationAggregate) for row in rows]
+        with self.client() as h5:
+            kind = self._citations_kind(h5)
+            if kind == 'absent':
+                return []
+            if kind == 'table':
+                return self._list_from_table(h5, selected_ids, source_id)
+            return self._list_groups(h5, selected_ids, source_id)
 
     # * method: remove_for_transfer
     def remove_for_transfer(self, id: str) -> None:
         '''
-        Remove an origin citation row as the last step of a move.
+        Remove an origin citation as the last step of a move.
 
         This helper is repository-private. It is not part of CitationService
         and is not a general-purpose delete API.
@@ -157,326 +298,613 @@ class CitationH5Repository(CitationService, H5Repository):
         :type id: str
         '''
 
-        # Drop only the matching row; the parent source group is untouched.
+        # Drop one citation. Sibling groups, including the parent sources, stay.
         with self.client() as h5:
-            if not h5.node_exists(CITATIONS_TABLE_PATH):
+            kind = self._citations_kind(h5)
+            if kind == 'table':
+                self._remove_table_row(h5, id)
                 return
-            table = h5.get_table(CITATIONS_TABLE_PATH)
-            target_id = CitationTableObject.encode_value(
-                id,
-                CitationTableObject._H5_TYPES['id'],
-            )
-            for index in range(table.nrows):
-                if table.cols.id[index] != target_id:
-                    continue
-                table.remove_rows(index, index + 1)
-                table.flush()
+            if kind != 'group':
                 return
+            path = self._citation_path(id)
+            if h5.node_exists(path):
+                h5.h5file.remove_node(path, recursive=True)
+            order = [
+                citation_id for citation_id in self._read_order(h5, CITATIONS_NODE_PATH)
+                if citation_id != id
+            ]
+            self._write_order(h5, CITATIONS_NODE_PATH, order)
 
     # * method: save
     def save(self, citation: CitationAggregate) -> None:
         '''
-        Persist a Citation aggregate as an id-based upsert.
+        Persist a Citation aggregate.
 
-        When a row with the same id already exists it is overwritten in place
-        via indexed column assignment; otherwise a new row is appended.
+        A fresh store, or a store already converted to groups, writes one
+        group and sized text arrays. An existing citations table is updated
+        in place and is not converted. Call ``migrate_table_to_groups`` for
+        that conversion.
 
         :param citation: The citation aggregate to persist.
         :type citation: CitationAggregate
         '''
 
-        # Serialize the citation to a table object and a plain field dict.
-        table_object = CitationTableObject.from_model(citation)
-        data = table_object.model_dump(by_alias=True)
-
-        # Get or create the table, then update-or-append by id.
+        # Never migrate from save. Capture must not rewrite the table.
         with self.client() as h5:
-            # A save is the only path that requires the current schema (get
-            # and list tolerate a missing column via the Citation field
-            # default), so the upgrade is checked here rather than on read.
-            self._ensure_current_schema(h5)
+            if self._citations_kind(h5) == 'table':
+                self._save_table(h5, citation)
+                return
+            self._save_group(h5, citation)
 
-            table = h5.get_or_create_table(
-                CITATIONS_TABLE_PATH,
-                CitationTableObject.get_description(),
-                filters=CITATIONS_TABLE_FILTERS,
-            )
+    # * method: migrate_table_to_groups
+    def migrate_table_to_groups(self) -> int:
+        '''
+        Copy a citations table into sized groups, then remove only that table.
 
-            # Compare against the encoded id so StringCol bytes match.
-            target_id = CitationTableObject.encode_value(
-                citation.id,
-                CitationTableObject._H5_TYPES['id'],
-            )
+        Copies every row into a staging group and verifies count, ids,
+        locators, types, and text before the table is renamed aside. A failed
+        check removes the staging group and leaves the table. Themes, sources,
+        linkages, and activities are not opened.
 
-            # Prefer indexed column writes; Row.update() during iterrows is
-            # not reliably persisted by PyTables for this path.
-            for index in range(table.nrows):
-                if table.cols.id[index] != target_id:
-                    continue
-                for name, col in CitationTableObject._H5_TYPES.items():
-                    getattr(table.cols, name)[index] = (
-                        CitationTableObject.encode_value(data.get(name), col)
+        Already-grouped stores are left unchanged. This method is not called
+        from ``save``, ``get``, or ``list``.
+
+        :return: The number of citation rows copied. Zero when there was no table.
+        :rtype: int
+        :raises RuntimeError: If the staged groups do not match the table.
+        '''
+
+        # Refuse to run when there is nothing to convert.
+        with self.client() as h5:
+            if self._citations_kind(h5) != 'table':
+                return 0
+            rows = h5.read_rows(CITATIONS_NODE_PATH)
+            expected = [aggregate_from_table_row(row) for row in rows]
+
+            # A leftover staging group is not citation content. Replace it.
+            if h5.node_exists(CITATIONS_STAGING_PATH):
+                h5.h5file.remove_node(CITATIONS_STAGING_PATH, recursive=True)
+
+            # Verify before the table path is touched.
+            try:
+                self._write_groups(h5, CITATIONS_STAGING_PATH, expected)
+                self._assert_groups_match(h5, CITATIONS_STAGING_PATH, expected)
+            except Exception:
+                if h5.node_exists(CITATIONS_STAGING_PATH):
+                    h5.h5file.remove_node(CITATIONS_STAGING_PATH, recursive=True)
+                raise
+
+            # Move the table aside, promote the verified group, then drop the table.
+            h5.h5file.rename_node(CITATIONS_NODE_PATH, CITATIONS_TABLE_BACKUP_LEAF)
+            h5.h5file.rename_node(CITATIONS_STAGING_PATH, CITATIONS_NODE_LEAF)
+            try:
+                self._assert_groups_match(h5, CITATIONS_NODE_PATH, expected)
+            except Exception:
+                if h5.node_exists(CITATIONS_NODE_PATH):
+                    h5.h5file.remove_node(CITATIONS_NODE_PATH, recursive=True)
+                if h5.node_exists(CITATIONS_TABLE_BACKUP_PATH):
+                    h5.h5file.rename_node(
+                        CITATIONS_TABLE_BACKUP_PATH,
+                        CITATIONS_NODE_LEAF,
                     )
-                table.flush()
-                return
+                raise
+            h5.h5file.remove_node(CITATIONS_TABLE_BACKUP_PATH)
+            return len(expected)
 
-            # No existing row — append a new one.
-            table_object.to_row(table)
-            table.flush()
-
-    # * method: _ensure_current_schema
-    def _ensure_current_schema(self, h5: Any) -> None:
+    # * method: _citations_kind
+    def _citations_kind(self, h5: Any) -> str:
         '''
-        Guarantee the live citations table matches the current schema.
+        Classify the citations node as absent, table, or group.
 
-        Runs any pending recovery from an interrupted prior upgrade first,
-        discards a stale staging table left by an upgrade that never reached
-        the backup-rename step, then upgrades a legacy (title-less) table.
-        Recovery and rollback can themselves leave the live table on the old
-        schema, so the schema check always runs last.
-
-        :param h5: The open H5Client for this operation.
+        :param h5: The open H5 client.
         :type h5: Any
+        :return: ``absent``, ``table``, or ``group``.
+        :rtype: str
         '''
 
-        # Finish or roll back a prior upgrade that did not reach completion.
-        if h5.node_exists(CITATIONS_BACKUP_PATH):
-            self._recover_from_interrupted_upgrade(h5)
-        elif h5.node_exists(CITATIONS_STAGING_PATH):
-            h5.h5file.remove_node(CITATIONS_STAGING_PATH)
+        # A missing node is not a reason to create either shape.
+        if not h5.node_exists(CITATIONS_NODE_PATH):
+            return 'absent'
+        node = h5.h5file.get_node(CITATIONS_NODE_PATH)
+        if isinstance(node, tables.Table):
+            return 'table'
+        return 'group'
 
-        # No live table yet — get_or_create_table builds one on the current
-        # schema directly, so there is nothing to upgrade.
-        if not h5.node_exists(CITATIONS_TABLE_PATH):
+    # * method: _citation_path
+    def _citation_path(self, citation_id: str) -> str:
+        '''
+        Build the group path for one citation.
+
+        :param citation_id: The citation identifier.
+        :type citation_id: str
+        :return: The absolute HDF5 group path.
+        :rtype: str
+        '''
+
+        # Text arrays live under this group.
+        return f'{CITATIONS_NODE_PATH}/{citation_id}'
+
+    # * method: _array_path
+    def _array_path(self, group_path: str, name: str) -> str:
+        '''
+        Build an array path under a citation group.
+
+        :param group_path: The citation group path.
+        :type group_path: str
+        :param name: The array node name.
+        :type name: str
+        :return: The absolute HDF5 array path.
+        :rtype: str
+        '''
+
+        # Excerpt and context note are siblings under the citation group.
+        return f'{group_path}/{name}'
+
+    # * method: _read_order
+    def _read_order(self, h5: Any, group_path: str) -> List[str]:
+        '''
+        Read stored insertion order, then any group children missing from it.
+
+        :param h5: The open H5 client.
+        :type h5: Any
+        :param group_path: The citations group whose order to read.
+        :type group_path: str
+        :return: Citation ids in insertion order.
+        :rtype: List[str]
+        '''
+
+        # The attribute is the insertion order written by save and migration.
+        if not h5.node_exists(group_path):
+            return []
+        order = normalize_order(h5.get_node_attrs(group_path).get(CITATION_ORDER_ATTR))
+        known = set(order)
+        group = h5.get_group(group_path)
+        for name, child in group._v_children.items():
+            if isinstance(child, tables.Group) and name not in known:
+                order.append(name)
+        return order
+
+    # * method: _write_order
+    def _write_order(self, h5: Any, group_path: str, citation_ids: List[str]) -> None:
+        '''
+        Store citation ids in insertion order on the parent group.
+
+        :param h5: The open H5 client.
+        :type h5: Any
+        :param group_path: The citations group to annotate.
+        :type group_path: str
+        :param citation_ids: Ids in insertion order.
+        :type citation_ids: List[str]
+        '''
+
+        # A parent attribute is not a citation and is not a text array.
+        h5.set_node_attr(group_path, CITATION_ORDER_ATTR, list(citation_ids))
+
+    # * method: _write_text_array
+    def _write_text_array(self, h5: Any, path: str, text: str) -> None:
+        '''
+        Replace a text array with one sized to the stored bytes.
+
+        :param h5: The open H5 client.
+        :type h5: Any
+        :param path: The absolute array path.
+        :type path: str
+        :param text: The text to store.
+        :type text: str
+        '''
+
+        # create_array cannot overwrite, and a CArray cannot have a zero shape.
+        if h5.node_exists(path):
+            h5.h5file.remove_node(path)
+        data = text_to_array(text)
+        if data.size == 0:
+            h5.create_array(path, np.array([], dtype=np.uint8))
             return
+        h5.create_array(path, data, filters=CITATION_TEXT_FILTERS)
 
-        # Upgrade in place when the live table predates a declared column or
-        # still carries a narrower text column than the current mapper.
-        table = h5.get_table(CITATIONS_TABLE_PATH)
-        if self._schema_upgrade_required(table):
-            self._upgrade_legacy_table(h5)
-
-    # * method: _schema_upgrade_required
-    def _schema_upgrade_required(self, table: Any) -> bool:
+    # * method: _remove_text_array
+    def _remove_text_array(self, h5: Any, path: str) -> None:
         '''
-        Determine whether the live table's schema is stale relative to the
-        current mapper declaration.
+        Remove a text array when the field is absent.
 
-        Two conditions require an upgrade: a column declared in
-        ``_H5_TYPES`` is absent from the table (``TableObject.verify_schema``
-        reports this), or a declared ``StringCol`` is present but narrower
-        than its current width (e.g. a pre-RFP-9 4,000-byte excerpt or
-        context note). ``verify_schema`` only reports absent columns, so the
-        width comparison is done locally against each column's live dtype.
-
-        :param table: The open PyTables Table to check against the mapper.
-        :type table: Any
-        :return: True if the table's schema no longer matches the mapper.
-        :rtype: bool
-        '''
-
-        # A column declared but absent from the table always needs an upgrade.
-        if CitationTableObject.verify_schema(table):
-            return True
-
-        # A present StringCol may still be narrower than the current width.
-        for name, col in CitationTableObject._H5_TYPES.items():
-            if not isinstance(col, tables.StringCol):
-                continue
-            if table.coldtypes[name].itemsize < col.itemsize:
-                return True
-
-        # Every declared column is present and wide enough.
-        return False
-
-    # * method: _recover_from_interrupted_upgrade
-    def _recover_from_interrupted_upgrade(self, h5: Any) -> None:
-        '''
-        Resume or roll back an upgrade that was interrupted mid-flight.
-
-        A backup node's presence means a prior upgrade renamed the legacy
-        table aside and did not finish. Three states are distinguishable:
-        promotion already completed (the live table exists again -- verify
-        and drop the backup); promotion never happened but a valid staging
-        table survives (finish promoting it); or staging is missing or does
-        not match the backup (discard it and restore the legacy table).
-
-        :param h5: The open H5Client for this operation.
+        :param h5: The open H5 client.
         :type h5: Any
+        :param path: The absolute array path.
+        :type path: str
         '''
 
-        # Snapshot the backup's rows; every branch below compares against them.
-        backup_rows = h5.read_rows(CITATIONS_BACKUP_PATH)
+        # An absent note is no array, not an empty column.
+        if h5.node_exists(path):
+            h5.h5file.remove_node(path)
 
-        # The live table already exists: a prior run promoted staging but was
-        # interrupted before cleaning up the backup. Verify, then clean up.
-        if h5.node_exists(CITATIONS_TABLE_PATH):
-            self._assert_row_parity(
-                h5.read_rows(CITATIONS_TABLE_PATH),
-                backup_rows,
-                context='recovery: promoted table vs. backup',
-            )
-            h5.h5file.remove_node(CITATIONS_BACKUP_PATH)
-            return
-
-        # The live table is missing: promotion was interrupted before or
-        # during the staging-to-live rename. Finish it when staging is intact.
-        if h5.node_exists(CITATIONS_STAGING_PATH):
-            staging_rows = h5.read_rows(CITATIONS_STAGING_PATH)
-            if self._row_ids(staging_rows) == self._row_ids(backup_rows) and \
-                    len(staging_rows) == len(backup_rows):
-                h5.h5file.rename_node(CITATIONS_STAGING_PATH, CITATIONS_TABLE_LEAF)
-                h5.h5file.remove_node(CITATIONS_BACKUP_PATH)
-                return
-
-            # Staging is present but does not match the backup; it cannot be
-            # trusted, so discard it and fall through to the restore below.
-            h5.h5file.remove_node(CITATIONS_STAGING_PATH)
-
-        # No usable staging table — restore the legacy table from the backup
-        # so the caller's schema check retries the upgrade from a clean state.
-        h5.h5file.rename_node(CITATIONS_BACKUP_PATH, CITATIONS_TABLE_LEAF)
-
-    # * method: _upgrade_legacy_table
-    def _upgrade_legacy_table(self, h5: Any) -> None:
+    # * method: _read_text_array
+    def _read_text_array(self, h5: Any, path: str) -> Optional[str]:
         '''
-        Upgrade the live citations table to the current schema in place.
+        Read one text array, or None when the array is absent.
 
-        Every legacy row is copied into a staging table built on the current
-        schema and verified there before the legacy table is displaced. The
-        legacy table is kept as a recoverable backup until the promoted
-        table is verified a second time, so an interruption at any point
-        leaves either the untouched legacy table, a discardable staging
-        table, or a recoverable backup -- never a silent loss.
-
-        :param h5: The open H5Client for this operation.
+        :param h5: The open H5 client.
         :type h5: Any
-        :raises RuntimeError: If the copied or promoted table does not carry
-            every legacy row exactly once.
+        :param path: The absolute array path.
+        :type path: str
+        :return: The stored text, or None when there is no array.
+        :rtype: Optional[str]
         '''
 
-        # Snapshot every legacy row before the schema changes at all.
-        legacy_rows = h5.read_rows(CITATIONS_TABLE_PATH)
+        # node_exists avoids opening a sibling citation's array.
+        if not h5.node_exists(path):
+            return None
+        return array_to_text(h5.get_array(path).read())
 
-        # Build the staging table on the current (title-aware) schema. A
-        # column absent from a legacy row falls back to its Citation domain
-        # default (title=None) during from_row's model_validate.
-        staging_table = h5.create_table(
-            CITATIONS_STAGING_PATH,
-            CitationTableObject.get_description(),
-            filters=CITATIONS_TABLE_FILTERS,
-        )
-        for row in legacy_rows:
-            CitationTableObject.from_row(row).to_row(staging_table)
-        staging_table.flush()
-
-        # Verify staging carries every legacy row before touching the legacy
-        # table; a mismatch here leaves the legacy table completely untouched.
-        self._assert_row_parity(
-            h5.read_rows(CITATIONS_STAGING_PATH),
-            legacy_rows,
-            context='upgrade: staging vs. legacy',
-        )
-
-        # Displace the legacy table into a recoverable backup, then promote
-        # the verified staging table into the live path.
-        h5.h5file.rename_node(CITATIONS_TABLE_PATH, CITATIONS_BACKUP_LEAF)
-        h5.h5file.rename_node(CITATIONS_STAGING_PATH, CITATIONS_TABLE_LEAF)
-
-        # Verify the promoted table once more before discarding the backup.
-        self._assert_row_parity(
-            h5.read_rows(CITATIONS_TABLE_PATH),
-            legacy_rows,
-            context='upgrade: promoted vs. legacy',
-        )
-        h5.h5file.remove_node(CITATIONS_BACKUP_PATH)
-
-    # * method: _row_ids (static)
-    @staticmethod
-    def _row_ids(rows: List[Dict[str, Any]]) -> set:
+    # * method: _write_attrs
+    def _write_attrs(self, h5: Any, path: str, citation: CitationAggregate) -> None:
         '''
-        Extract the set of citation ids from a list of raw row dicts.
+        Write citation attributes, omitting an absent title.
 
-        :param rows: Row dicts as returned by ``H5Client.read_rows``.
-        :type rows: List[Dict[str, Any]]
-        :return: The set of ``id`` values across the given rows.
-        :rtype: set
+        :param h5: The open H5 client.
+        :type h5: Any
+        :param path: The citation group path.
+        :type path: str
+        :param citation: The citation to store.
+        :type citation: CitationAggregate
         '''
 
-        # Collect the id column from each row.
-        return {row.get('id') for row in rows}
+        # to_attrs drops excerpt, context note, and a None title.
+        attrs = CitationNodeObject.from_model(citation).to_attrs()
+        for name, value in attrs.items():
+            h5.set_node_attr(path, name, value)
 
-    # * method: _comparable_cell (static)
-    @staticmethod
-    def _comparable_cell(value: Any) -> Any:
-        '''
-        Normalize a stored cell for exact field comparison.
+        # A cleared title must not remain from an earlier save.
+        node = h5.h5file.get_node(path)
+        if citation.title is None and 'title' in node._v_attrs:
+            del node._v_attrs.title
 
-        StringCol padding is not citation content, so trailing NUL bytes are
-        stripped before comparing. Bytes are compared as UTF-8 text.
-
-        :param value: A cell value from ``H5Client.read_rows``.
-        :type value: Any
-        :return: A comparable Python-native value.
-        :rtype: Any
-        '''
-
-        # Decode and strip StringCol padding so width changes are not content.
-        if isinstance(value, bytes):
-            return value.rstrip(b'\x00').decode('utf-8')
-        if isinstance(value, str):
-            return value.rstrip('\x00')
-
-        # Leave non-text cells unchanged.
-        return value
-
-    # * method: _assert_row_parity
-    def _assert_row_parity(self,
-            actual_rows: List[Dict[str, Any]],
-            expected_rows: List[Dict[str, Any]],
-            *,
-            context: str,
+    # * method: _write_one_group
+    def _write_one_group(self,
+            h5: Any,
+            parent_path: str,
+            citation: CitationAggregate,
         ) -> None:
         '''
-        Verify two row lists carry the same citations in the same order.
+        Write one citation group and its text arrays under a parent group.
 
-        Compares row count, insertion order, and every field present on the
-        expected (pre-existing) rows. Columns added by a later schema are
-        ignored so a title-less legacy row is not required to invent a title.
-
-        :param actual_rows: The rows read back after a copy or promotion.
-        :type actual_rows: List[Dict[str, Any]]
-        :param expected_rows: The rows expected to be present.
-        :type expected_rows: List[Dict[str, Any]]
-        :param context: A short label identifying the check, for the error message.
-        :type context: str
-        :raises RuntimeError: If count, order, or a pre-existing field does not match.
+        :param h5: The open H5 client.
+        :type h5: Any
+        :param parent_path: The citations group that owns this citation.
+        :type parent_path: str
+        :param citation: The citation to store.
+        :type citation: CitationAggregate
         '''
 
-        # A mismatched count means a row was dropped or duplicated.
-        if len(actual_rows) != len(expected_rows):
+        # Attributes first, then arrays sized to the text that is present.
+        path = f'{parent_path}/{citation.id}'
+        if not h5.node_exists(path):
+            h5.create_group(path)
+        self._write_attrs(h5, path, citation)
+        self._write_text_array(
+            h5,
+            self._array_path(path, EXCERPT_ARRAY_NAME),
+            citation.excerpt,
+        )
+        note_path = self._array_path(path, CONTEXT_NOTE_ARRAY_NAME)
+        if citation.context_note is None:
+            self._remove_text_array(h5, note_path)
+            return
+        self._write_text_array(h5, note_path, citation.context_note)
+
+    # * method: _write_groups
+    def _write_groups(self,
+            h5: Any,
+            parent_path: str,
+            citations: List[CitationAggregate],
+        ) -> None:
+        '''
+        Write a citations group and every citation under it.
+
+        :param h5: The open H5 client.
+        :type h5: Any
+        :param parent_path: The group path to create.
+        :type parent_path: str
+        :param citations: Citations in insertion order.
+        :type citations: List[CitationAggregate]
+        '''
+
+        # Order is an attribute on the parent, not a citation child.
+        h5.create_group(parent_path)
+        for citation in citations:
+            self._write_one_group(h5, parent_path, citation)
+        self._write_order(h5, parent_path, [citation.id for citation in citations])
+
+    # * method: _read_group
+    def _read_group(self, h5: Any, path: str) -> Optional[CitationAggregate]:
+        '''
+        Read one citation group. Does not open sibling groups.
+
+        :param h5: The open H5 client.
+        :type h5: Any
+        :param path: The citation group path.
+        :type path: str
+        :return: The citation aggregate, or None when the group is absent.
+        :rtype: Optional[CitationAggregate]
+        '''
+
+        # A missing group is a missing citation, not an error.
+        if not h5.node_exists(path):
+            return None
+        attrs = {
+            name: value
+            for name, value in h5.get_node_attrs(path).items()
+            if name != CITATION_ORDER_ATTR
+        }
+        excerpt = self._read_text_array(h5, self._array_path(path, EXCERPT_ARRAY_NAME))
+        note = self._read_text_array(h5, self._array_path(path, CONTEXT_NOTE_ARRAY_NAME))
+        data = dict(attrs)
+        data['excerpt'] = '' if excerpt is None else excerpt
+        if note is not None:
+            data['context_note'] = note
+        return CitationAggregate.model_validate(data)
+
+    # * method: _list_groups
+    def _list_groups(self,
+            h5: Any,
+            selected_ids: Optional[set],
+            source_id: Optional[str],
+        ) -> List[CitationAggregate]:
+        '''
+        Walk citation groups and read arrays only for selected citations.
+
+        :param h5: The open H5 client.
+        :type h5: Any
+        :param selected_ids: Ids to keep, or None for every citation.
+        :type selected_ids: Optional[set]
+        :param source_id: Optional source filter applied before array reads.
+        :type source_id: Optional[str]
+        :return: Matching citations in insertion order.
+        :rtype: List[CitationAggregate]
+        '''
+
+        # Unselected ids are skipped before any text array is opened.
+        citations = []
+        for citation_id in self._read_order(h5, CITATIONS_NODE_PATH):
+            if selected_ids is not None and citation_id not in selected_ids:
+                continue
+            path = self._citation_path(citation_id)
+            if not h5.node_exists(path):
+                continue
+            if source_id is not None:
+                attrs = h5.get_node_attrs(path)
+                if attrs.get('source_id') != source_id:
+                    continue
+            citation = self._read_group(h5, path)
+            if citation is not None:
+                citations.append(citation)
+        return citations
+
+    # * method: _save_group
+    def _save_group(self, h5: Any, citation: CitationAggregate) -> None:
+        '''
+        Insert or replace one citation group. Does not read other citations' text.
+
+        :param h5: The open H5 client.
+        :type h5: Any
+        :param citation: The citation to persist.
+        :type citation: CitationAggregate
+        '''
+
+        # The parent group is created once. An update does not change order.
+        if not h5.node_exists(CITATIONS_NODE_PATH):
+            h5.create_group(CITATIONS_NODE_PATH)
+            self._write_order(h5, CITATIONS_NODE_PATH, [])
+        is_new = not h5.node_exists(self._citation_path(citation.id))
+        self._write_one_group(h5, CITATIONS_NODE_PATH, citation)
+        if not is_new:
+            return
+
+        # Persist insertion order. Do not treat a child walk as already stored.
+        order = normalize_order(
+            h5.get_node_attrs(CITATIONS_NODE_PATH).get(CITATION_ORDER_ATTR)
+        )
+        if citation.id not in order:
+            order.append(citation.id)
+            self._write_order(h5, CITATIONS_NODE_PATH, order)
+
+    # * method: _assert_groups_match
+    def _assert_groups_match(self,
+            h5: Any,
+            parent_path: str,
+            expected: List[CitationAggregate],
+        ) -> None:
+        '''
+        Verify staged or promoted groups match the citations copied from a table.
+
+        :param h5: The open H5 client.
+        :type h5: Any
+        :param parent_path: The citations group to read.
+        :type parent_path: str
+        :param expected: Citations in table insertion order.
+        :type expected: List[CitationAggregate]
+        :raises RuntimeError: If count, order, or a stored field does not match.
+        '''
+
+        # Count and order are checked before field text, so a short copy fails closed.
+        order = self._read_order(h5, parent_path)
+        if len(order) != len(expected):
             raise RuntimeError(
-                f'Citation table schema upgrade failed parity check ({context}): '
-                f'expected {len(expected_rows)} row(s), found {len(actual_rows)}.'
+                'Citation group migration failed parity check: '
+                f'expected {len(expected)} citation(s), found {len(order)}.'
+            )
+        for index, citation in enumerate(expected):
+            if order[index] != citation.id:
+                raise RuntimeError(
+                    'Citation group migration failed parity check: '
+                    f'insertion order mismatch at index {index}: '
+                    f'expected id {citation.id!r}, found {order[index]!r}.'
+                )
+            actual = self._read_group(h5, f'{parent_path}/{citation.id}')
+            if actual is None:
+                raise RuntimeError(
+                    'Citation group migration failed parity check: '
+                    f'missing group for id {citation.id!r}.'
+                )
+            self._assert_same_citation(actual, citation, index)
+
+    # * method: _assert_same_citation
+    def _assert_same_citation(self,
+            actual: CitationAggregate,
+            expected: CitationAggregate,
+            index: int,
+        ) -> None:
+        '''
+        Compare the fields migration is required to preserve.
+
+        :param actual: The citation read back from a group.
+        :type actual: CitationAggregate
+        :param expected: The citation copied from the table row.
+        :type expected: CitationAggregate
+        :param index: The table row index, for the error message.
+        :type index: int
+        :raises RuntimeError: If a preserved field differs.
+        '''
+
+        # Text, locator, type, and title are the migration contract.
+        checks = {
+            'id': actual.id == expected.id,
+            'source_id': actual.source_id == expected.source_id,
+            'locator': actual.locator == expected.locator,
+            'type': actual.type == expected.type,
+            'excerpt': actual.excerpt == expected.excerpt,
+            'context_note': actual.context_note == expected.context_note,
+            'title': actual.title == expected.title,
+            'created_at': actual.created_at == expected.created_at,
+        }
+        for field_name, matched in checks.items():
+            if matched:
+                continue
+            raise RuntimeError(
+                'Citation group migration failed parity check: '
+                f'field {field_name!r} mismatch at index {index} '
+                f'(id {expected.id!r}).'
             )
 
-        # Compare insertion order and every pre-existing stored field.
-        for index, (actual, expected) in enumerate(zip(actual_rows, expected_rows)):
-            actual_id = self._comparable_cell(actual.get('id'))
-            expected_id = self._comparable_cell(expected.get('id'))
-            if actual_id != expected_id:
-                raise RuntimeError(
-                    f'Citation table schema upgrade failed parity check ({context}): '
-                    f'insertion order mismatch at index {index}: '
-                    f'expected id {expected_id!r}, found {actual_id!r}.'
-                )
+    # * method: _get_from_table
+    def _get_from_table(self, h5: Any, citation_id: str) -> Optional[CitationAggregate]:
+        '''
+        Read one citation from an unmigrated table.
 
-            for key, expected_value in expected.items():
-                actual_value = self._comparable_cell(actual.get(key))
-                comparable_expected = self._comparable_cell(expected_value)
-                if actual_value != comparable_expected:
-                    raise RuntimeError(
-                        f'Citation table schema upgrade failed parity check ({context}): '
-                        f'field {key!r} mismatch at index {index} '
-                        f'(id {expected_id!r}).'
-                    )
+        This scans the table. It exists so a store that has not been migrated
+        still answers get. It is not used after the node is a group.
+
+        :param h5: The open H5 client.
+        :type h5: Any
+        :param citation_id: The citation identifier.
+        :type citation_id: str
+        :return: The citation, or None if the id is absent.
+        :rtype: Optional[CitationAggregate]
+        '''
+
+        # Find the row in memory. Do not convert the table.
+        rows = h5.read_rows(CITATIONS_NODE_PATH)
+        match = next((row for row in rows if row.get('id') == citation_id), None)
+        if match is None:
+            return None
+        return CitationTableObject.from_row(match).map(CitationAggregate)
+
+    # * method: _list_from_table
+    def _list_from_table(self,
+            h5: Any,
+            selected_ids: Optional[set],
+            source_id: Optional[str],
+        ) -> List[CitationAggregate]:
+        '''
+        List citations from an unmigrated table.
+
+        :param h5: The open H5 client.
+        :type h5: Any
+        :param selected_ids: Ids to keep, or None for every row.
+        :type selected_ids: Optional[set]
+        :param source_id: Optional source filter.
+        :type source_id: Optional[str]
+        :return: Matching citations in table order.
+        :rtype: List[CitationAggregate]
+        '''
+
+        # One table read, then filter before mapping unselected rows.
+        rows = h5.read_rows(CITATIONS_NODE_PATH)
+        if selected_ids is not None:
+            rows = [row for row in rows if row.get('id') in selected_ids]
+        if source_id is not None:
+            rows = [row for row in rows if row.get('source_id') == source_id]
+        return [
+            CitationTableObject.from_row(row).map(CitationAggregate)
+            for row in rows
+        ]
+
+    # * method: _save_table
+    def _save_table(self, h5: Any, citation: CitationAggregate) -> None:
+        '''
+        Update or append one row on an unmigrated table.
+
+        Does not widen columns and does not convert the table to groups.
+        A table missing a current column must be migrated explicitly.
+
+        :param h5: The open H5 client.
+        :type h5: Any
+        :param citation: The citation to persist.
+        :type citation: CitationAggregate
+        :raises RuntimeError: If the table is missing a column this write needs.
+        '''
+
+        # A stale narrow table is not rewritten into a 10,000,000-byte row.
+        table = h5.get_table(CITATIONS_NODE_PATH)
+        missing = [
+            name for name in CitationTableObject._H5_TYPES
+            if name not in table.colnames
+        ]
+        if missing:
+            raise RuntimeError(
+                'Citation table is missing columns '
+                f'{missing}. Run migrate_table_to_groups(); '
+                'save does not rewrite the table.'
+            )
+
+        # In-place upsert by id. This still scans an unmigrated table.
+        data = CitationTableObject.from_model(citation).model_dump(by_alias=True)
+        target_id = CitationTableObject.encode_value(
+            citation.id,
+            CitationTableObject._H5_TYPES['id'],
+        )
+        for index in range(table.nrows):
+            if table.cols.id[index] != target_id:
+                continue
+            for name, col in CitationTableObject._H5_TYPES.items():
+                getattr(table.cols, name)[index] = CitationTableObject.encode_value(
+                    data.get(name),
+                    col,
+                )
+            table.flush()
+            return
+        CitationTableObject.from_model(citation).to_row(table)
+        table.flush()
+
+    # * method: _remove_table_row
+    def _remove_table_row(self, h5: Any, citation_id: str) -> None:
+        '''
+        Remove one row from an unmigrated citations table.
+
+        :param h5: The open H5 client.
+        :type h5: Any
+        :param citation_id: The citation identifier to remove.
+        :type citation_id: str
+        '''
+
+        # Drop only the matching row. The table node stays a table.
+        table = h5.get_table(CITATIONS_NODE_PATH)
+        target_id = CitationTableObject.encode_value(
+            citation_id,
+            CitationTableObject._H5_TYPES['id'],
+        )
+        for index in range(table.nrows):
+            if table.cols.id[index] != target_id:
+                continue
+            table.remove_rows(index, index + 1)
+            table.flush()
+            return

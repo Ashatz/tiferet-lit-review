@@ -8,7 +8,7 @@ from typing import Any, ClassVar, Dict, Optional
 # ** infra
 import tables
 from pydantic import Field
-from tiferet_h5 import TableObject
+from tiferet_h5 import NodeObject, TableObject
 
 # ** app
 from tiferet.mappers.core import Aggregate, TransferObject
@@ -104,8 +104,10 @@ class CitationAggregate(Citation, Aggregate):
 # ** mapper: citation_table_object
 class CitationTableObject(Citation, TableObject):
     '''
-    HDF5 table mapper for Citation: one PyTables row per citation, stored in
-    a single table at /lit_review/citations.
+    HDF5 table mapper for a pre-migration Citation row.
+
+    Used only to read or update ``/lit_review/citations`` while that node is
+    still a table. New citations are groups; this mapper does not size text.
     '''
 
     # * attribute: _H5_TYPES
@@ -118,6 +120,25 @@ class CitationTableObject(Citation, TableObject):
         'title': tables.StringCol(MAX_TITLE_BYTES),
         'type': tables.StringCol(CITATION_TYPE_COL_BYTES),
         'created_at': tables.Int64Col(),
+    }
+
+
+# ** mapper: citation_node_object
+class CitationNodeObject(Citation, NodeObject):
+    '''
+    HDF5 attribute mapper for one citation group.
+
+    Excerpt and context note are sized arrays under the group, not
+    attributes. An absent title is omitted rather than stored as an empty
+    string.
+    '''
+
+    # * attribute: _ROLES
+    _ROLES: ClassVar[Dict[str, Dict[str, Any]]] = {
+        'to_h5.attrs': {
+            'by_alias': True,
+            'exclude': {'excerpt', 'context_note'},
+        },
     }
 
 

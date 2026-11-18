@@ -222,10 +222,10 @@ class Citation(DomainObject):
         '''
         Reject an excerpt or context note exceeding its declared byte capacity.
 
-        Capacity is measured in encoded UTF-8 bytes, matching the fixed-width
-        PyTables StringCol storage at the persistence boundary. A value at or
-        below the cap round-trips exactly; an over-capacity value is rejected
-        here, before persistence, rather than silently truncated.
+        Capacity is measured in encoded UTF-8 bytes. The ceiling is a
+        validation limit, not a stored row width. A value at or below the cap
+        round-trips exactly; an over-capacity value is rejected here, before
+        persistence, rather than silently truncated.
 
         :param values: The raw field values before construction.
         :type values: dict
